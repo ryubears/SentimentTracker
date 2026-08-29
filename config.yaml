@@ -1,0 +1,19 @@
+# Accounts to track. Start with 15-40; too many dilutes the signal and costs API reads.
+accounts:
+  - handle: example_macro_trader
+  - handle: example_onchain_analyst
+  - handle: example_crypto_news
+
+horizon: "1d"          # "1d" or "1h" — how far ahead the score is supposed to predict
+symbol: "BTCUSDT"
+
+weights:
+  eta: 2.0             # sharpness: higher = winners dominate faster
+  decay: 0.9           # per-period memory. 0.9 ~ 10-period half-life-ish; 0.97 for hourly
+  floor: 0.2           # share of total weight distributed uniformly (nobody drops below floor/N)
+
+sentiment:
+  backend: "llm"       # "llm" (Claude) or "vader"
+  model: "claude-sonnet-4-6"
+
+db_path: "data/tracker.sqlite"
