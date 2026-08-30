@@ -55,7 +55,8 @@ def bucket_by_period(posts: list[dict], periods: list[pd.Timestamp],
             by_period[periods[i]][p["account"]].append((p["score"], p["engagement"]))
     return by_period
 
-def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) -> None:
+def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False,
+         workers: int = sentiment.DEFAULT_WORKERS) -> None:
     cfg = yaml.safe_load(open(cfg_path))
     handles = [a["handle"] for a in cfg["accounts"]]
     step = HORIZON[cfg["horizon"]]
@@ -71,13 +72,17 @@ def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) ->
     known = dict(con.execute("SELECT post_id, score FROM posts WHERE score IS NOT NULL"))
     fresh = [p for p in posts if p["post_id"] not in known]
     print(f"scoring {len(fresh)} posts ({len(posts) - len(fresh)} already scored in the db) "
-         f"with backend={cfg['sentiment']['backend']}"
-         + (" (this calls the LLM once per unscored post — switch to vader in config.yaml to backfill for free)"
-            if cfg["sentiment"]["backend"] == "llm" and fresh else "") + "...")
+         f"with backend={cfg['sentiment']['backend']} across {workers} workers...", flush=True)
+    scored = sentiment.score_many([p["text"] for p in fresh],
+                                  {**cfg["sentiment"], "horizon": cfg["horizon"]}, workers=workers)
+    for p, s in zip(fresh, scored):
+        p["score"] = s
     for p in posts:
-        p["score"] = known[p["post_id"]] if p["post_id"] in known else \
-            sentiment.score_post(p["text"], {**cfg["sentiment"], "horizon": cfg["horizon"]})
-    db.save_posts(con, posts)
+        if p["post_id"] in known:
+            p["score"] = known[p["post_id"]]
+    # Posts that failed to score are left out entirely, so a later run retries them
+    # rather than the cache serving a placeholder score forever.
+    db.save_posts(con, [p for p in posts if p["score"] is not None])
 
     periods = period_boundaries(start, now, step)
     # Bucket from the db, not from `posts`: the cache is the union of every fetch, so a
@@ -110,5 +115,7 @@ if __name__ == "__main__":
     ap.add_argument("--days", type=int, default=60)
     ap.add_argument("--resume", action="store_true",
                     help="continue from the current weight_snapshots state instead of a cold start")
+    ap.add_argument("--workers", type=int, default=sentiment.DEFAULT_WORKERS,
+                    help="concurrent LLM scoring requests (default %(default)s)")
     args = ap.parse_args()
-    main(args.config, args.days, args.resume)
+    main(args.config, args.days, args.resume, args.workers)

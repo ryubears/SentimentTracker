@@ -4,19 +4,19 @@
 {
   "n": 60,
   "agg_score": {
-    "pearson": 0.09900128952390429,
-    "spearman": 0.03751041956098917,
-    "hit_rate": 0.5,
-    "mean_ret_when_bullish": 0.004930410043347136,
-    "mean_ret_when_bearish": 0.004508224943549392
+    "pearson": 0.14277844096579512,
+    "spearman": -0.007057515976660185,
+    "hit_rate": 0.55,
+    "mean_ret_when_bullish": 0.004464537310296091,
+    "mean_ret_when_bearish": 0.005219061173551126
   },
   "agg_uniform": {
-    "pearson": 0.10380847561477698,
-    "spearman": 0.04662406223951098,
-    "hit_rate": 0.5,
-    "mean_ret_when_bullish": 0.005164181248734025,
-    "mean_ret_when_bearish": 0.004243991113619706
+    "pearson": 0.14526048603196906,
+    "spearman": 0.0007224228952486803,
+    "hit_rate": 0.5333333333333333,
+    "mean_ret_when_bullish": 0.004242523379902439,
+    "mean_ret_when_bearish": 0.005511392994406242
   },
-  "shuffled_pearson_95pct": 0.2064401149250981
+  "shuffled_pearson_95pct": 0.24726868197052101
 }
 ```
