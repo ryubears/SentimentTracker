@@ -1,8 +1,25 @@
 # Accounts to track. Start with 15-40; too many dilutes the signal and costs API reads.
 accounts:
-  - handle: example_macro_trader
-  - handle: example_onchain_analyst
-  - handle: example_crypto_news
+  - handle: blknoiz06
+  - handle: cobie
+  - handle: TaikiMaeda2
+  - handle: AviFelman
+  - handle: 0xSisyphus
+  - handle: CL207
+  - handle: LomahCrypto
+  - handle: LSDinmycoffee
+  - handle: KeyboardMonkey3
+  - handle: awawat
+  - handle: pierre_crypt0
+  - handle: lBattleRhino
+  - handle: zeroxkyle
+  - handle: ThinkingUSD
+  - handle: bitbitcrypto
+  - handle: DonAlt
+  - handle: Evan_ss6
+  - handle: SalsaTekila
+  - handle: Tradermayne
+  - handle: R89Capital
 
 horizon: "1d"          # "1d" or "1h" — how far ahead the score is supposed to predict
 symbol: "BTCUSDT"
