@@ -3,13 +3,15 @@ SQLite persistence. Weight snapshots are stored per period to avoid look-ahead i
 """
 
 from __future__ import annotations
+from datetime import datetime, timedelta
 from pathlib import Path
 import json
 import sqlite3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS posts (
-  post_id TEXT PRIMARY KEY, account TEXT, created_at TEXT, text TEXT, likes INT, score REAL);
+  post_id TEXT PRIMARY KEY, account TEXT, created_at TEXT, text TEXT, likes INT, score REAL,
+  engagement REAL, engagement_at TEXT);
 CREATE TABLE IF NOT EXISTS periods (
   period_ts TEXT PRIMARY KEY, horizon TEXT, agg_score REAL, agg_uniform REAL,
   price_now REAL, price_later REAL, realized_return REAL, resolved INT DEFAULT 0);
@@ -28,12 +30,53 @@ def connect(path: str) -> sqlite3.Connection:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(path)
     con.executescript(SCHEMA)
+    cols = [r[1] for r in con.execute("PRAGMA table_info(posts)")]
+    if "engagement" not in cols:
+        # Pre-engagement db: add the column; likes are the best proxy for old rows.
+        con.execute("ALTER TABLE posts ADD COLUMN engagement REAL")
+        con.execute("UPDATE posts SET engagement = likes")
+    if "engagement_at" not in cols:
+        # NULL means never measured at maturity, so the refresh pass picks these up.
+        con.execute("ALTER TABLE posts ADD COLUMN engagement_at TEXT")
+    con.commit()
     return con
 
 def save_posts(con, posts: list[dict]) -> None:
     con.executemany(
-        "INSERT OR IGNORE INTO posts VALUES (:post_id,:account,:created_at,:text,:likes,:score)", posts)
+        "INSERT OR IGNORE INTO posts (post_id,account,created_at,text,likes,score,engagement,engagement_at) "
+        "VALUES (:post_id,:account,:created_at,:text,:likes,:score,:engagement,:engagement_at)", posts)
     con.commit()
+
+def stale_engagement_posts(con, matured_before_iso: str, limit: int) -> list[str]:
+    """
+    Posts old enough that their engagement has settled (created before the
+    cutoff) but whose engagement was last measured — if ever — less than a day
+    after posting. These are due for one refresh via fetch_engagement.
+    """
+    out = []
+    for pid, created, measured in con.execute(
+            "SELECT post_id, created_at, engagement_at FROM posts WHERE created_at<=? "
+            "ORDER BY created_at", (matured_before_iso,)):
+        if measured is None or (datetime.fromisoformat(measured)
+                                < datetime.fromisoformat(created) + timedelta(days=1)):
+            out.append(pid)
+            if len(out) == limit:
+                break
+    return out
+
+def update_engagement(con, post_ids: list[str], fresh: dict[str, float], at_iso: str) -> None:
+    """Record refreshed engagement. Posts absent from `fresh` (deleted or
+    protected) keep their last value but are stamped so they aren't retried."""
+    con.executemany(
+        "UPDATE posts SET engagement=COALESCE(?, engagement), engagement_at=? WHERE post_id=?",
+        [(fresh.get(pid), at_iso, pid) for pid in post_ids])
+    con.commit()
+
+def engagement_history(con, account: str, before_iso: str) -> list[float]:
+    """Engagement of the account's cached posts strictly before a cutoff."""
+    return [r[0] for r in con.execute(
+        "SELECT engagement FROM posts WHERE account=? AND created_at<? AND engagement IS NOT NULL",
+        (account, before_iso))]
 
 def save_period(con, period_ts: str, horizon: str, agg: float, agg_uniform: float,
                 price_now: float, signals: dict[str, float], counts: dict[str, int],
