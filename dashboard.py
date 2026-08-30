@@ -1,6 +1,5 @@
 """
 Generate a self-contained HTML dashboard from the tracker db:
-  - per-account weight trajectories (top 5 by current weight highlighted),
   - cumulative and per-period returns from following the aggregate score,
   - rolling Pearson/Spearman between score and realized return,
   - Sortino ratio and headline metrics.
@@ -24,57 +23,41 @@ from sentiment_tracker.evaluate import metrics, rolling_corr, sortino, strategy_
 
 PERIODS_PER_YEAR = {"1d": 365.0, "1h": 24 * 365.0}
 ROLL_WINDOW = 14
-TOP_N = 5
 
 def build_payload(con, cfg: dict) -> dict:
-    rows = con.execute("SELECT period_ts, agg_score, agg_uniform, realized_return, resolved "
+    rows = con.execute("SELECT period_ts, agg_score, realized_return, resolved "
                        "FROM periods ORDER BY period_ts").fetchall()
-    resolved = [r for r in rows if r[4]]
+    resolved = [r for r in rows if r[3]]
     ts = [r[0] for r in resolved]
     agg = np.array([r[1] for r in resolved], dtype=float)
-    unif = np.array([r[2] for r in resolved], dtype=float)
-    ret = np.array([r[3] for r in resolved], dtype=float)
+    ret = np.array([r[2] for r in resolved], dtype=float)
 
     deadband = cfg.get("signal", {}).get("deadband", 0.0)
     strat = strategy_returns(agg, ret, deadband)
-    strat_u = strategy_returns(unif, ret, deadband)
     cum = np.cumprod(1 + strat) - 1
-    cum_u = np.cumprod(1 + strat_u) - 1
     ppy = PERIODS_PER_YEAR[cfg["horizon"]]
     overall = metrics(agg, ret) if len(agg) > 1 else {}
-
-    snaps = con.execute("SELECT period_ts, weights_json FROM weight_snapshots "
-                        "ORDER BY period_ts").fetchall()
-    wdates = [s[0] for s in snaps]
-    parsed = [json.loads(s[1]) for s in snaps]
-    accounts = sorted({a for w in parsed for a in w})
-    series = {a: [w.get(a) for w in parsed] for a in accounts}
-    last = {a: next((v for v in reversed(series[a]) if v is not None), 0.0) for a in accounts}
-    top = sorted(accounts, key=lambda a: -last[a])[:TOP_N]
+    n_accounts = con.execute("SELECT COUNT(DISTINCT account) FROM account_signals").fetchone()[0]
 
     return {
         "meta": {
             "symbol": cfg["symbol"], "horizon": cfg["horizon"],
-            "n_resolved": len(resolved), "n_accounts": len(accounts),
+            "n_resolved": len(resolved), "n_accounts": n_accounts,
             "span": [ts[0][:10], ts[-1][:10]] if ts else ["", ""],
             "window": ROLL_WINDOW, "deadband": deadband,
             "generated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         },
         "tiles": {
             "cum": float(cum[-1]) if len(cum) else None,
-            "cum_uniform": float(cum_u[-1]) if len(cum_u) else None,
             "sortino": sortino(strat, ppy),
-            "sortino_uniform": sortino(strat_u, ppy),
             "pearson": overall.get("pearson"),
             "spearman": overall.get("spearman"),
             "hit_rate": overall.get("hit_rate"),
+            "n_directional": overall.get("n_directional"),
         },
-        "weights": {"dates": wdates, "series": series, "top": top,
-                    "uniform": 1.0 / len(accounts) if accounts else None},
-        "returns": {"dates": ts, "strategy": strat.tolist(),
-                    "cum": cum.tolist(), "cum_uniform": cum_u.tolist()},
+        "returns": {"dates": ts, "strategy": strat.tolist(), "cum": cum.tolist()},
         "rolling": rolling_corr(agg, ret, ROLL_WINDOW) | {"dates": ts},
-        "table": [[r[0], r[1], r[2], r[3], float(s)] for r, s in zip(resolved, strat)],
+        "table": [[r[0], r[1], r[2], float(s)] for r, s in zip(resolved, strat)],
     }
 
 def main() -> None:
@@ -166,22 +149,14 @@ footer { margin-top: 26px; font-size: 12px; color: var(--muted); }
   </header>
   <div class="tiles" id="tiles"></div>
   <div class="card">
-    <h2>Account weights</h2>
-    <p class="sub">Adaptive softmax weight snapshotted at each period; the top 5 accounts by
-      current weight are highlighted, the rest are muted.</p>
-    <div class="legend" id="wlegend"></div>
-    <div class="chart" id="weights"></div>
-  </div>
-  <div class="card">
     <h2>Cumulative strategy return</h2>
     <p class="sub" id="cumsub">Compounded return from going long when the aggregate score is
-      bullish and short when bearish, adaptive vs uniform weights.</p>
-    <div class="legend" id="clegend"></div>
+      bullish and short when bearish.</p>
     <div class="chart" id="cumret"></div>
   </div>
   <div class="card">
     <h2>Per-period strategy return</h2>
-    <p class="sub">Realized return of the adaptive score's direction, one bar per resolved period.</p>
+    <p class="sub">Realized return of the score's direction, one bar per resolved period.</p>
     <div class="chart" id="perret"></div>
   </div>
   <div class="card">
@@ -323,29 +298,19 @@ function render() {
     `${m.symbol} \u00b7 ${m.horizon} horizon \u00b7 ${m.n_resolved} resolved periods, ` +
     `${m.span[0]} \u2192 ${m.span[1]} \u00b7 ${m.n_accounts} accounts`;
   document.getElementById("tiles").innerHTML = [
-    ["Cumulative return", fmtPct(t.cum), `uniform weights ${fmtPct(t.cum_uniform)}`],
-    ["Sortino (annualized)", fmtNum(t.sortino), `uniform weights ${fmtNum(t.sortino_uniform)}`],
+    ["Cumulative return", fmtPct(t.cum), `over ${m.n_resolved} resolved periods`],
+    ["Sortino (annualized)", fmtNum(t.sortino), `from n=${m.n_resolved} \u2014 annualizing a short sample flatters it`],
     ["Pearson", fmtNum(t.pearson), "score vs next-period return"],
-    ["Spearman", fmtNum(t.spearman), `hit rate ${fmtPct(t.hit_rate, 0)}`],
+    ["Hit rate", fmtPct(t.hit_rate, 1), `of ${t.n_directional} periods with a directional call`],
   ].map(([k, v, sub]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="sub">${sub}</div></div>`).join("");
-
-  const W = D.weights, others = Object.keys(W.series).filter(a => !W.top.includes(a));
-  lineChart(document.getElementById("weights"), W.dates,
-    others.map(a => ({ name: a, values: W.series[a], color: "var(--muted)", width: 1, opacity: 0.45 }))
-      .concat(W.top.map((a, i) => ({ name: a, values: W.series[a], color: PALETTE[i], label: true }))),
-    { yFmt: v => fmtPct(v), ref: W.uniform, tooltip: "nearest" });
-  legend(document.getElementById("wlegend"),
-    W.top.map((a, i) => [a, PALETTE[i]]).concat([["other accounts", "var(--muted)"], ["uniform 1/N", "var(--axis)", true]]));
 
   if (m.deadband > 0) document.getElementById("cumsub").textContent =
     `Compounded return from going long when the aggregate score is bullish and short when `
-    + `bearish, flat when |score| \u2264 ${m.deadband} \u2014 adaptive vs uniform weights.`;
+    + `bearish, flat when |score| \u2264 ${m.deadband}.`;
   const R = D.returns;
   lineChart(document.getElementById("cumret"), R.dates, [
-    { name: "adaptive", values: R.cum, color: PALETTE[0], label: true },
-    { name: "uniform", values: R.cum_uniform, color: PALETTE[1], label: true },
+    { name: "cumulative", values: R.cum, color: PALETTE[0] },
   ], { yFmt: v => fmtPct(v), ref: 0 });
-  legend(document.getElementById("clegend"), [["adaptive weights", PALETTE[0]], ["uniform weights", PALETTE[1]]]);
 
   barChart(document.getElementById("perret"), R.dates, R.strategy);
 
@@ -357,9 +322,9 @@ function render() {
   legend(document.getElementById("rlegend"), [["Pearson", PALETTE[0]], ["Spearman", PALETTE[1]]]);
 
   document.getElementById("datatable").innerHTML =
-    "<tr><th>period</th><th>score</th><th>uniform</th><th>return</th><th>strategy</th></tr>" +
+    "<tr><th>period</th><th>score</th><th>return</th><th>strategy</th></tr>" +
     D.table.map(r => `<tr><td>${r[0].slice(0, 16).replace("T", " ")}</td><td>${fmtNum(r[1], 3)}</td>` +
-      `<td>${fmtNum(r[2], 3)}</td><td>${fmtPct(r[3], 2)}</td><td>${fmtPct(r[4], 2)}</td></tr>`).join("");
+      `<td>${fmtPct(r[2], 2)}</td><td>${fmtPct(r[3], 2)}</td></tr>`).join("");
   document.getElementById("foot").textContent =
     `Generated ${m.generated} by dashboard.py from the local tracker db.`;
 }

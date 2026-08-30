@@ -51,13 +51,8 @@ accounts:
   - handle: The_Airmass
   - handle: alpinestar17
 
-horizon: "1d"          # "1d" or "1h" — how far ahead the score is supposed to predict
+horizon: "1h"          # "1d" or "1h" — how far ahead the score is supposed to predict
 symbol: "BTCUSDT"
-
-weights:
-  eta: 2.0             # sharpness: higher = winners dominate faster
-  decay: 0.9           # per-period memory. 0.9 ~ 10-period half-life-ish; 0.97 for hourly
-  floor: 0.2           # share of total weight distributed uniformly (nobody drops below floor/N)
 
 signal:
   # Posts scoring at or below this in absolute value are treated as "no view on BTC"

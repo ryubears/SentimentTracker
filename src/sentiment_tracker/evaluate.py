@@ -16,10 +16,16 @@ def metrics(x: np.ndarray, r: np.ndarray) -> dict:
     x, r = np.asarray(x, dtype=float), np.asarray(r, dtype=float)
     pearson = float(stats.pearsonr(x, r)[0]) if len(x) > 1 and x.std() > 0 else float("nan")
     spearman = float(stats.spearmanr(x, r)[0]) if len(x) > 1 and x.std() > 0 else float("nan")
+    # A score of exactly 0 is "no directional call", not a wrong one. sign(0) never
+    # matches sign(r), so counting flat periods as misses silently understates the
+    # hit rate — badly once periods can be empty (hourly runs are ~29% flat).
+    directional = x != 0
     return {
         "pearson": pearson,
         "spearman": spearman,
-        "hit_rate": float(np.mean(np.sign(x) == np.sign(r))),
+        "hit_rate": (float(np.mean(np.sign(x[directional]) == np.sign(r[directional])))
+                     if directional.any() else None),
+        "n_directional": int(directional.sum()),
         "mean_ret_when_bullish": float(r[x > 0].mean()) if (x > 0).any() else None,
         "mean_ret_when_bearish": float(r[x < 0].mean()) if (x < 0).any() else None,
     }
@@ -68,8 +74,7 @@ def evaluate(con, deadband: float = 0.0) -> dict:
     if len(df) < 5:
         return {"n": len(df), "note": "need >=5 resolved periods"}
     out = {"n": int(len(df))}
-    for col in ("agg_score", "agg_uniform"):
-        out[col] = metrics(df[col].values, df["realized_return"].values)
+    out["agg_score"] = metrics(df["agg_score"].values, df["realized_return"].values)
 
     # Gated view: only the periods with enough conviction to act on. Reported
     # alongside the ungated metrics so the filter can never hide the full picture.
