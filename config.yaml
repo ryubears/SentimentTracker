@@ -30,6 +30,42 @@ accounts:
   - handle: 0xAnteater
   - handle: CryptoCred
   - handle: krugermacro
+  - handle: ScizRtrading
+  - handle: HighCoinviction
+  - handle: FloodCapital
+  - handle: lazyvillager1
+  - handle: kwaker_oats_
+  - handle: JoshuaDeuk
+  - handle: gammichan
+  - handle: TraderMercury
+  - handle: Stoiiic
+  - handle: tradinglord
+  - handle: _zkmike
+  - handle: rodeo_crypro
+  - handle: KevinWSHPod
+  - handle: plur_daddy
+  - handle: finalcycle324
+  - handle: citrini
+  - handle: TylerDurden
+  - handle: Gold_Cryptoz
+  - handle: Globalflows
+  - handle: 0xaporia
+  - handle: izebel_eth
+  - handle: stablealt
+  - handle: ThinkingBitmex
+  - handle: Pool2Paulie
+  - handle: CryptoCapo_
+  - handle: AlgodTrading
+  - handle: RunnerXBT
+  - handle: BigTrout300
+  - handle: FredWick7
+  - handle: Bluntz_Capital
+  - handle: hellojintao
+  - handle: chrisgrx_
+  - handle: The_Airmass
+  - handle: Innerdevcrypto
+  - handle: Crypto_Chase
+  - handle: alpinestar17
 
 horizon: "1d"          # "1d" or "1h" — how far ahead the score is supposed to predict
 symbol: "BTCUSDT"
