@@ -1,4 +1,7 @@
-"""Print evaluation metrics; used by the GitHub Action to refresh RESULTS.md."""
+"""
+Print evaluation metrics; used by the GitHub Action to refresh RESULTS.md.
+"""
+
 import json, sys
 sys.path.insert(0, "src")
 import yaml

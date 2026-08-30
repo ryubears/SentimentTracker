@@ -1,8 +1,9 @@
-"""Bootstrap N days of history before going "live" (see README roadmap).
+"""
+Bootstrap N days of history before going live.
 
 Paginates historical X posts and BTC price history, then replays the exact
 Phase A / Phase B loop from run_period.py one period at a time — so weights
-warm up under the *same* no-look-ahead rule used in production: the score
+warm up under the same no-look-ahead rule used in production: the score
 saved for period t only ever uses weights snapshotted from periods before t,
 and a period's outcome is only folded into the weights once its horizon has
 actually elapsed.
@@ -13,30 +14,27 @@ on a real clock the way run_period.py does when run on a schedule.
 
 Usage:
   python backfill.py --days 60
-  python backfill.py --days 14 --resume     # continue from the current weight state
+  python backfill.py --days 14 --resume # Continue from the current weight state.
 """
-from __future__ import annotations
 
+from __future__ import annotations
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 import argparse
 import bisect
 import sys
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
-
 import pandas as pd
 import yaml
 
 from dotenv import load_dotenv
-
 load_dotenv()
 
 sys.path.insert(0, "src")
-from sentiment_tracker import db, prices, sentiment  # noqa: E402
-from sentiment_tracker.fetch_x import fetch_historical_posts  # noqa: E402
-from sentiment_tracker.weights import AccountWeights, aggregate  # noqa: E402
+from sentiment_tracker import db, prices, sentiment
+from sentiment_tracker.fetch_x import fetch_historical_posts
+from sentiment_tracker.weights import AccountWeights, aggregate
 
 HORIZON = {"1d": timedelta(days=1), "1h": timedelta(hours=1)}
-
 
 def period_boundaries(start: datetime, end: datetime, step: timedelta) -> list[pd.Timestamp]:
     ts, out = start, []
@@ -44,7 +42,6 @@ def period_boundaries(start: datetime, end: datetime, step: timedelta) -> list[p
         out.append(pd.Timestamp(ts))
         ts += step
     return out
-
 
 def bucket_by_period(posts: list[dict], periods: list[pd.Timestamp],
                      step: timedelta) -> dict[pd.Timestamp, dict[str, list[float]]]:
@@ -57,7 +54,6 @@ def bucket_by_period(posts: list[dict], periods: list[pd.Timestamp],
         if i < len(periods) and periods[i] - step < ts <= periods[i]:
             by_period[periods[i]][p["account"]].append(p["score"])
     return by_period
-
 
 def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) -> None:
     cfg = yaml.safe_load(open(cfg_path))
@@ -87,7 +83,7 @@ def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) ->
     for h in handles:
         aw.add_account(h)
 
-    pending = None  # (period_ts, signals, price_now) awaiting resolution
+    pending = None # (period_ts, signals, price_now) awaiting resolution.
     resolved_n = 0
     for t in periods:
         acct_scores = by_period.get(t, {})
@@ -95,7 +91,7 @@ def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) ->
         counts = {a: len(v) for a, v in acct_scores.items()}
         price_now = prices.price_at(klines, t)
 
-        # ---- Phase A: the previous period's horizon has now elapsed
+        # Phase A: the previous period's horizon has now elapsed.
         if pending is not None:
             prev_t, prev_signals, prev_price = pending
             ret = price_now / prev_price - 1.0
@@ -103,7 +99,7 @@ def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) ->
             db.resolve_period(con, prev_t.isoformat(), price_now, ret)
             resolved_n += 1
 
-        # ---- Phase B: score this period with weights as of *before* its own outcome
+        # Phase B: score this period with weights as of before its own outcome.
         w = aw.weights()
         agg = aggregate(signals, w)
         agg_uniform = aggregate(signals, {a: 1.0 for a in signals})

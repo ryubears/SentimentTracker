@@ -8,7 +8,7 @@ Design Goals:
 Mechanism: each account carries an exponentially-decayed performance score.
     score_a = decay * score_a + (1 - decay) * reward_a
 where reward_a = signal_a * sign(realized_return) lies in [-1, 1].
-Areeing with a big move and disagreeing with one are rewarded/penalised by the
+Agreeing with a big move and disagreeing with one are rewarded/penalised by the
 signal's magnitude, so a confident wrong call hurts more than a lukewarm one.
 
 Weights are a softmax over eta * score_a, mixed with a uniform distribution:

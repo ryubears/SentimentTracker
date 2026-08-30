@@ -1,17 +1,18 @@
-"""Grid sweep over (eta, decay, floor) with walk-forward validation.
+"""
+Grid sweep over (eta, decay, floor) with walk-forward validation.
 
 The weight-update rule is already online and look-ahead-free by construction:
 the score saved for period t only ever depends on weights derived from periods
 before t (see weights.py / run_period.py). That means there's no separate
-"train" step to walk forward through per fold — for a given hyperparameter
-combo we just replay the *entire* historical sequence once, in period order,
+train step to walk forward through per fold for a given hyperparameter
+combo we just replay the entire historical sequence once, in period order,
 which is cheap (pure numpy over signals/returns already recorded in the db,
-no API calls, no LLM). Walk-forward here is purely about *evaluation*: slice
+no API calls, no LLM). Walk-forward here is purely about evaluation: slice
 the resulting (agg_score, realized_return) series into forward-chained folds,
 skip an initial burn-in stretch where a cold-started weight vector is still
-close to uniform, and require a combo to hold up across folds — not just do
-well on one — before trusting it. That guards against picking eta/decay/floor
-that happen to fit one lucky stretch of the timeline.
+close to uniform, and require a combo to hold up across folds before trusting 
+it. That guards against picking eta/decay/floor that happen to fit one lucky 
+stretch of the timeline.
 
 Needs history to sweep over: run `python backfill.py --days 60` first (or let
 run_period.py accumulate periods over time).
@@ -21,11 +22,9 @@ Usage:
   python sweep.py --eta 1,2,4,8 --decay 0.8,0.9,0.95 --floor 0.1,0.2,0.3 --folds 6
 """
 from __future__ import annotations
-
 import argparse
 import itertools
 import sys
-
 import numpy as np
 import pandas as pd
 import yaml
@@ -35,20 +34,20 @@ from sentiment_tracker import db  # noqa: E402
 from sentiment_tracker.evaluate import metrics  # noqa: E402
 from sentiment_tracker.weights import AccountWeights, aggregate  # noqa: E402
 
-
 def load_history(con) -> tuple[pd.DataFrame, pd.DataFrame]:
     periods = pd.read_sql(
         "SELECT period_ts, realized_return FROM periods WHERE resolved=1 ORDER BY period_ts", con)
     signals = pd.read_sql("SELECT period_ts, account, signal FROM account_signals", con)
     return periods, signals
 
-
 def replay(periods: pd.DataFrame, by_period: dict[str, dict[str, float]], accounts: list[str],
           eta: float, decay: float, floor: float) -> np.ndarray:
-    """Recompute the adaptive aggregate score for every resolved period under one
+    """
+    Recompute the adaptive aggregate score for every resolved period under one
     hyperparameter combo. reward = signal * sign(return) doesn't depend on
     (eta, decay, floor) at all, so this needs only the signals/returns already
-    on disk — no re-fetching required to sweep hundreds of combos."""
+    on disk and no re-fetching required to sweep hundreds of combos.
+    """
     aw = AccountWeights(accounts, eta=eta, decay=decay, floor=floor)
     scores = np.empty(len(periods))
     for i, row in enumerate(periods.itertuples()):
@@ -57,7 +56,6 @@ def replay(periods: pd.DataFrame, by_period: dict[str, dict[str, float]], accoun
         scores[i] = aggregate(sig, w)
         aw.update(sig, row.realized_return)   # now fold in the outcome
     return scores
-
 
 def walk_forward(periods: pd.DataFrame, by_period: dict, accounts: list[str],
                  eta: float, decay: float, floor: float,
@@ -80,7 +78,6 @@ def walk_forward(periods: pd.DataFrame, by_period: dict, accounts: list[str],
         "pooled_pearson": metrics(scores[idx], ret[idx])["pearson"],
     })
     return row
-
 
 def main(cfg_path: str = "config.yaml", eta_grid=(1.0, 2.0, 4.0, 8.0), decay_grid=(0.8, 0.9, 0.95),
         floor_grid=(0.1, 0.2, 0.3), n_folds: int = 5, burn_in_frac: float = 0.2) -> None:
@@ -119,7 +116,6 @@ def main(cfg_path: str = "config.yaml", eta_grid=(1.0, 2.0, 4.0, 8.0), decay_gri
     cols = ["eta", "decay", "floor", "mean_pearson", "worst_fold_pearson", "mean_hit_rate"]
     print(ranked[cols].head(10).to_string(index=False))
     print("\nfull grid written to sweep_results.csv")
-
 
 if __name__ == "__main__":
     parse_list = lambda s: tuple(float(x) for x in s.split(","))  # noqa: E731
