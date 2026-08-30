@@ -19,10 +19,9 @@ load_dotenv()
 
 sys.path.insert(0, "src")
 from sentiment_tracker import db, engine, prices, sentiment
-from sentiment_tracker.fetch_x import fetch_engagement, fetch_posts
+from sentiment_tracker.fetch_x import fetch_posts
 from sentiment_tracker.periods import HORIZON, anchor_hour, current_boundary
 
-ENGAGEMENT_REFRESH_LIMIT = 500 # posts per run, to stay friendly to X API rate limits
 
 def main(config_path: str = "config.yaml") -> None:
     config = yaml.safe_load(open(config_path))
@@ -42,15 +41,6 @@ def main(config_path: str = "config.yaml") -> None:
         if missed > 0:
             print(f"warning: {missed} period(s) missing between {last} and {now.isoformat()} — "
                   "they stay empty until filled with backfill.py")
-
-    # Phase 0: posts from a day ago have settled — replace their early (or absent)
-    # engagement snapshot with the matured value.
-    stale = db.stale_engagement_posts(con, (real_now - timedelta(days=1)).isoformat(),
-                                      limit=ENGAGEMENT_REFRESH_LIMIT)
-    if stale:
-        fresh = fetch_engagement(stale)
-        db.update_engagement(con, stale, fresh, real_now.isoformat())
-        print(f"refreshed engagement for {len(fresh)}/{len(stale)} matured post(s)")
 
     # Price history spanning everything this run prices: each unresolved period's
     # maturity and the current boundary (minus 1h so a bar at or before each exists).
@@ -74,7 +64,7 @@ def main(config_path: str = "config.yaml") -> None:
 
     by_acct = defaultdict(list)
     for p in posts:
-        by_acct[p["account"]].append((p["score"], p["engagement"]))
+        by_acct[p["account"]].append(p["score"])
 
     price_now = prices.price_at(klines, pd.Timestamp(now))
     agg, agg_uniform, w = engine.score_period(con, aw, now, by_acct, price_now, horizon)

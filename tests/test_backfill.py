@@ -7,10 +7,9 @@ from backfill import bucket_by_period
 STEP = timedelta(days=1)
 T0 = pd.Timestamp("2026-08-01T00:00:00+00:00")
 
-def post(pid, account, created, score=0.5, engagement=10.0):
+def post(pid, account, created, score=0.5):
     return {"post_id": pid, "account": account, "created_at": created, "text": "x",
-            "likes": 0, "score": score, "engagement": engagement,
-            "engagement_at": "2026-08-20T00:00:00+00:00"}
+            "likes": 0, "score": score}
 
 def test_bucketing_uses_cached_posts_a_short_fetch_would_have_missed():
     con = db.connect(":memory:")
@@ -34,11 +33,11 @@ def test_save_period_replaces_the_whole_signal_set():
     con = db.connect(":memory:")
     aw = engine.load_weights(con, ["a", "b"], {"eta": 2.0, "decay": 0.9, "floor": 0.2})
     t = T0
-    engine.score_period(con, aw, t, {"a": [(0.5, None)], "b": [(-0.5, None)]}, 100.0, "1d")
+    engine.score_period(con, aw, t, {"a": [0.5], "b": [-0.5]}, 100.0, "1d")
     assert sorted(r[0] for r in con.execute(
         "SELECT account FROM account_signals WHERE period_ts=?", (t.isoformat(),))) == ["a", "b"]
 
     # Re-scoring the same period without "b" must drop b's stale row.
-    engine.score_period(con, aw, t, {"a": [(0.5, None)]}, 100.0, "1d")
+    engine.score_period(con, aw, t, {"a": [0.5]}, 100.0, "1d")
     assert [r[0] for r in con.execute(
         "SELECT account FROM account_signals WHERE period_ts=?", (t.isoformat(),))] == ["a"]
