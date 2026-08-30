@@ -1,7 +1,7 @@
 """
 One scheduled run. Two phases:
-  A. Resolve past periods whose horizon has elapsed and update account weights.
-  B. Score the current period with the updated weights and snapshot them.
+  A. Resolve past periods whose horizon has elapsed, recording realized returns.
+  B. Score the current period from this window's posts.
 Run daily (horizon "1d") or hourly (horizon "1h"), change in config.
 """
 
@@ -47,10 +47,9 @@ def main(config_path: str = "config.yaml") -> None:
     maturities = [pd.Timestamp(ts) + step for ts, _ in db.unresolved_periods(con)]
     kstart = min(maturities + [pd.Timestamp(now)]) - timedelta(hours=1)
     klines = prices.get_klines(con, config["symbol"], kstart, pd.Timestamp(now))
-    aw = engine.load_weights(con, handles, config["weights"])
 
-    # Phase A: resolve matured periods, update weights.
-    for period_ts, ret in engine.resolve_matured(con, aw, klines, now, step):
+    # Phase A: resolve matured periods.
+    for period_ts, ret in engine.resolve_matured(con, klines, now, step):
         print(f"resolved {period_ts}: return {ret:+.3%}")
 
     # Phase B: score the current period from posts in (now - step, now].
@@ -67,13 +66,14 @@ def main(config_path: str = "config.yaml") -> None:
         by_acct[p["account"]].append(p["score"])
 
     price_now = prices.price_at(klines, pd.Timestamp(now))
-    agg, agg_uniform, w = engine.score_period(
-        con, aw, now, by_acct, price_now, horizon,
+    agg, signals = engine.score_period(
+        con, now, by_acct, price_now, horizon,
         relevance_min=config.get("signal", {}).get("relevance_min", 0.0))
 
     print(json.dumps({"period": now.isoformat(), "posts": len(posts), "score": round(agg, 4),
-                      "uniform": round(agg_uniform, 4), "btc": price_now,
-                      "top_weights": sorted(w.items(), key=lambda kv: -kv[1])[:5]}, indent=2))
+                      "btc": price_now, "accounts_contributing": len(signals),
+                      "most_bullish": sorted(signals.items(), key=lambda kv: -kv[1])[:3],
+                      "most_bearish": sorted(signals.items(), key=lambda kv: kv[1])[:3]}, indent=2))
 
 
 if __name__ == "__main__":

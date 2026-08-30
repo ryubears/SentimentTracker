@@ -2,11 +2,8 @@
 Bootstrap N days of history before going live.
 
 Paginates historical X posts and BTC price history, then replays the exact
-Phase A / Phase B loop from run_period.py one period at a time — so weights
-warm up under the same no-look-ahead rule used in production: the score
-saved for period t only ever uses weights snapshotted from periods before t,
-and a period's outcome is only folded into the weights once its horizon has
-actually elapsed.
+Phase A / Phase B loop from run_period.py one period at a time, so the backfilled
+series is built the same way the live one is.
 
 Because we have the whole price history up front, "waiting for the horizon to
 elapse" just means "the next period boundary in the walk", instead of waiting
@@ -14,7 +11,6 @@ on a real clock the way run_period.py does when run on a schedule.
 
 Usage:
   python backfill.py --days 60
-  python backfill.py --days 14 --resume # Continue from the current weight state.
 """
 
 from __future__ import annotations
@@ -54,7 +50,7 @@ def bucket_by_period(posts: list[dict], periods: list[pd.Timestamp],
             by_period[periods[i]][p["account"]].append(p["score"])
     return by_period
 
-def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False,
+def main(cfg_path: str = "config.yaml", days: int = 60,
          workers: int = sentiment.DEFAULT_WORKERS) -> None:
     cfg = yaml.safe_load(open(cfg_path))
     handles = [a["handle"] for a in cfg["accounts"]]
@@ -92,15 +88,13 @@ def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False,
     print(f"bucketing {len(cached)} cached posts ({len(posts)} returned by this fetch)...")
     by_period = bucket_by_period(cached, periods, step)
 
-    aw = engine.load_weights(con, handles, cfg["weights"], resume=resume)
-
     resolved_n = 0
     for t in periods:
         # Phase A: resolve anything whose horizon has elapsed by this boundary.
-        resolved_n += len(engine.resolve_matured(con, aw, klines, t, step))
-        # Phase B: score this period with weights as of before its own outcome.
-        engine.score_period(con, aw, t, by_period.get(t, {}),
-                            prices.price_at(klines, t), cfg["horizon"],
+        resolved_n += len(engine.resolve_matured(con, klines, t, step))
+        # Phase B: score this period.
+        engine.score_period(con, t, by_period.get(t, {}), prices.price_at(klines, t),
+                            cfg["horizon"],
                             relevance_min=cfg.get("signal", {}).get("relevance_min", 0.0))
 
     print(f"backfilled {len(periods)} periods ({resolved_n} resolved) "
@@ -113,9 +107,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--days", type=int, default=60)
-    ap.add_argument("--resume", action="store_true",
-                    help="continue from the current weight_snapshots state instead of a cold start")
     ap.add_argument("--workers", type=int, default=sentiment.DEFAULT_WORKERS,
                     help="concurrent LLM scoring requests (default %(default)s)")
     args = ap.parse_args()
-    main(args.config, args.days, args.resume, args.workers)
+    main(args.config, args.days, args.workers)
