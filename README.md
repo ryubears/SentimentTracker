@@ -37,9 +37,23 @@ python run_period.py            # one period; schedule with cron or the included
 python report.py
 ```
 
+## Backfill & tune
+```bash
+python backfill.py --days 60          # bootstrap history before going "live" (--resume to extend it)
+python sweep.py                       # grid sweep over eta/decay/floor, walk-forward validated
+```
+`backfill.py` paginates historical X posts and BTC price history, then replays the same
+Phase A / Phase B loop as `run_period.py`, one period boundary at a time — so weights warm
+up under the identical no-look-ahead rule used live, just without waiting on a real clock.
+
+`sweep.py` replays already-recorded (signal, realized_return) pairs — no API calls — under
+each candidate (η, λ, ε), then scores each combo on forward-chained folds after an initial
+burn-in stretch, ranking by worst-fold correlation so a combo has to hold up across time,
+not just fit one lucky window.
+
 ## Roadmap
-- [ ] Bootstrap 60+ days of history so weights are meaningful before going "live"
+- [x] Bootstrap 60+ days of history so weights are meaningful before going "live" (`backfill.py`)
 - [ ] Hourly horizon experiment (set `horizon: "1h"`, `decay: 0.97`)
-- [ ] Hyperparameter sweep for η, λ, ε with walk-forward validation
+- [x] Hyperparameter sweep for η, λ, ε with walk-forward validation (`sweep.py`)
 - [ ] Engagement-weighted signals (likes/reposts) vs. plain mean
 - [ ] Dashboard of weight trajectories per account
