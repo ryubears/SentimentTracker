@@ -7,7 +7,7 @@ Run daily (horizon "1d") or hourly (horizon "1h"), change in config.
 
 from __future__ import annotations
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import json
 import sys
 import pandas as pd
@@ -18,18 +18,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 sys.path.insert(0, "src")
-from sentiment_tracker import db, prices, sentiment 
+from sentiment_tracker import db, prices, sentiment
 from sentiment_tracker.fetch_x import fetch_posts
+from sentiment_tracker.periods import HORIZON, anchor_hour, current_boundary
 from sentiment_tracker.weights import AccountWeights, aggregate
-
-HORIZON = {"1d": timedelta(days=1), "1h": timedelta(hours=1)}
 
 def main(config_path: str = "config.yaml") -> None:
     config = yaml.safe_load(open(config_path))
     handles = [a["handle"] for a in config["accounts"]]
     step = HORIZON[config["horizon"]]
-    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     con = db.connect(config["db_path"])
+    now = current_boundary(datetime.now(timezone.utc), step, anchor_hour(con, config["horizon"]))
     klines = prices.fetch_klines(config["symbol"], interval="1h")
 
     state = db.latest_state(con)
@@ -48,8 +47,10 @@ def main(config_path: str = "config.yaml") -> None:
         db.resolve_period(con, period_ts, p1, ret)
         print(f"resolved {period_ts}: return {ret:+.3%}")
 
-    # Phase B: score current period.
-    posts = fetch_posts(handles, since=now - step)
+    # Phase B: score current period. An off-schedule run can execute well after the
+    # boundary, so drop posts newer than it — they belong to the next period.
+    posts = [p for p in fetch_posts(handles, since=now - step)
+             if pd.Timestamp(p["created_at"]) <= pd.Timestamp(now)]
     for p in posts:
         p["score"] = sentiment.score_post(p["text"], {**config["sentiment"], "horizon": config["horizon"]})
     db.save_posts(con, posts)

@@ -32,9 +32,8 @@ load_dotenv()
 sys.path.insert(0, "src")
 from sentiment_tracker import db, prices, sentiment
 from sentiment_tracker.fetch_x import fetch_historical_posts
+from sentiment_tracker.periods import HORIZON, anchor_hour, current_boundary
 from sentiment_tracker.weights import AccountWeights, aggregate
-
-HORIZON = {"1d": timedelta(days=1), "1h": timedelta(hours=1)}
 
 def period_boundaries(start: datetime, end: datetime, step: timedelta) -> list[pd.Timestamp]:
     ts, out = start, []
@@ -59,9 +58,9 @@ def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) ->
     cfg = yaml.safe_load(open(cfg_path))
     handles = [a["handle"] for a in cfg["accounts"]]
     step = HORIZON[cfg["horizon"]]
-    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
-    start = now - timedelta(days=days)
     con = db.connect(cfg["db_path"])
+    now = current_boundary(datetime.now(timezone.utc), step, anchor_hour(con, cfg["horizon"]))
+    start = now - timedelta(days=days)
 
     print(f"fetching {days}d of {cfg['symbol']} price history...")
     klines = prices.fetch_klines_range(cfg["symbol"], "1h", pd.Timestamp(start) - step, pd.Timestamp(now))
