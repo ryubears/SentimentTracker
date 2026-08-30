@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS account_signals (
   period_ts TEXT, account TEXT, signal REAL, n_posts INT, PRIMARY KEY (period_ts, account));
 CREATE TABLE IF NOT EXISTS weight_snapshots (
   period_ts TEXT PRIMARY KEY, weights_json TEXT, state_json TEXT);
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS klines (
+  symbol TEXT, ts TEXT, close REAL, PRIMARY KEY (symbol, ts));
 """
 
 
@@ -56,3 +60,23 @@ def resolve_period(con, period_ts: str, price_later: float, ret: float) -> None:
 
 def signals_for(con, period_ts: str) -> dict[str, float]:
     return dict(con.execute("SELECT account, signal FROM account_signals WHERE period_ts=?", (period_ts,)))
+
+def latest_period_ts(con, horizon: str) -> str | None:
+    return con.execute("SELECT MAX(period_ts) FROM periods WHERE horizon=?", (horizon,)).fetchone()[0]
+
+def cached_klines(con, symbol: str, start_iso: str, end_iso: str) -> list[tuple[str, float]]:
+    return con.execute("SELECT ts, close FROM klines WHERE symbol=? AND ts BETWEEN ? AND ? "
+                       "ORDER BY ts", (symbol, start_iso, end_iso)).fetchall()
+
+def save_klines(con, symbol: str, rows: list[tuple[str, float]]) -> None:
+    con.executemany("INSERT OR IGNORE INTO klines VALUES (?,?,?)",
+                    [(symbol, ts, close) for ts, close in rows])
+    con.commit()
+
+def get_meta(con, key: str) -> str | None:
+    row = con.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+    return row[0] if row else None
+
+def set_meta(con, key: str, value: str) -> None:
+    con.execute("INSERT OR REPLACE INTO meta VALUES (?,?)", (key, value))
+    con.commit()
