@@ -41,7 +41,11 @@ def main(config_path: str = "config.yaml") -> None:
             print(f"warning: {missed} period(s) missing between {last} and {now.isoformat()} — "
                   "they stay empty until filled with backfill.py")
 
-    klines = prices.fetch_klines(config["symbol"], interval="1h")
+    # Price history spanning everything this run prices: each unresolved period's
+    # maturity and the current boundary (minus 1h so a bar at or before each exists).
+    maturities = [pd.Timestamp(ts) + step for ts, _ in db.unresolved_periods(con)]
+    kstart = min(maturities + [pd.Timestamp(now)]) - timedelta(hours=1)
+    klines = prices.get_klines(con, config["symbol"], kstart, pd.Timestamp(now))
     aw = engine.load_weights(con, handles, config["weights"])
 
     # Phase A: resolve matured periods, update weights.

@@ -61,8 +61,8 @@ def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) ->
     now = current_boundary(datetime.now(timezone.utc), step, anchor_hour(con, cfg["horizon"]))
     start = now - timedelta(days=days)
 
-    print(f"fetching {days}d of {cfg['symbol']} price history...")
-    klines = prices.fetch_klines_range(cfg["symbol"], "1h", pd.Timestamp(start) - step, pd.Timestamp(now))
+    print(f"loading {days}d of {cfg['symbol']} price history (cached hours are not refetched)...")
+    klines = prices.get_klines(con, cfg["symbol"], pd.Timestamp(start) - step, pd.Timestamp(now))
 
     print(f"fetching historical posts for {len(handles)} accounts since {start.date()}...")
     posts = fetch_historical_posts(handles, since=start, until=now)

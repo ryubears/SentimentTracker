@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS weight_snapshots (
   period_ts TEXT PRIMARY KEY, weights_json TEXT, state_json TEXT);
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS klines (
+  symbol TEXT, ts TEXT, close REAL, PRIMARY KEY (symbol, ts));
 """
 
 
@@ -61,6 +63,15 @@ def signals_for(con, period_ts: str) -> dict[str, float]:
 
 def latest_period_ts(con, horizon: str) -> str | None:
     return con.execute("SELECT MAX(period_ts) FROM periods WHERE horizon=?", (horizon,)).fetchone()[0]
+
+def cached_klines(con, symbol: str, start_iso: str, end_iso: str) -> list[tuple[str, float]]:
+    return con.execute("SELECT ts, close FROM klines WHERE symbol=? AND ts BETWEEN ? AND ? "
+                       "ORDER BY ts", (symbol, start_iso, end_iso)).fetchall()
+
+def save_klines(con, symbol: str, rows: list[tuple[str, float]]) -> None:
+    con.executemany("INSERT OR IGNORE INTO klines VALUES (?,?,?)",
+                    [(symbol, ts, close) for ts, close in rows])
+    con.commit()
 
 def get_meta(con, key: str) -> str | None:
     row = con.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
