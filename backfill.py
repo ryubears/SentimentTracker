@@ -26,6 +26,10 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import yaml
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 sys.path.insert(0, "src")
 from sentiment_tracker import db, prices, sentiment  # noqa: E402
 from sentiment_tracker.fetch_x import fetch_historical_posts  # noqa: E402
