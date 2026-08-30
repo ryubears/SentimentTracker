@@ -42,14 +42,16 @@ def test_rerun_over_the_same_boundaries_replaces_rows_not_duplicates():
     assert con.execute("SELECT COUNT(*) FROM periods").fetchone()[0] == 3
 
 def seed_posts(con, account, engagements):
-    """History posts well before T0's scoring window."""
+    """History posts well before T0's scoring window, measured at maturity."""
     db.save_posts(con, [{"post_id": f"{account}{i}", "account": account,
                          "created_at": f"2026-07-{10 + i:02d}T00:00:00+00:00", "text": "x",
-                         "likes": 0, "score": 0.0, "engagement": e}
+                         "likes": 0, "score": 0.0, "engagement": e,
+                         "engagement_at": f"2026-07-{12 + i:02d}T00:00:00+00:00"}
                         for i, e in enumerate(engagements)])
 
 def test_engagement_weight_shape():
     assert engine.engagement_weight(50, None) == 1.0 # no history yet: neutral.
+    assert engine.engagement_weight(None, 10.0) == 1.0 # post too young to judge: neutral.
     assert engine.engagement_weight(10, 10.0) == 1.0 # at your own baseline: neutral.
     assert engine.engagement_weight(10_000, 10.0) == 3.0 # viral, but capped.
     assert engine.engagement_weight(0, 10_000.0) == 0.5 # flopped, but floored.
@@ -78,7 +80,8 @@ def test_baseline_excludes_posts_inside_the_scored_window():
     con = db.connect(":memory:")
     db.save_posts(con, [{"post_id": "w1", "account": "a",
                          "created_at": (pd.Timestamp(T0) - pd.Timedelta(hours=2)).isoformat(),
-                         "text": "x", "likes": 0, "score": 1.0, "engagement": 10_000}])
+                         "text": "x", "likes": 0, "score": 1.0, "engagement": 10_000,
+                         "engagement_at": (pd.Timestamp(T0) - pd.Timedelta(hours=1)).isoformat()}])
     cutoff = (pd.Timestamp(T0) - STEP).isoformat()
     assert db.engagement_history(con, "a", cutoff) == [] # in-window post: no look-ahead.
 

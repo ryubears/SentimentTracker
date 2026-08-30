@@ -42,7 +42,7 @@ def resolve_matured(con, aw: AccountWeights, klines: pd.DataFrame,
         out.append((period_ts, ret))
     return out
 
-def engagement_weight(e: float, baseline: float | None) -> float:
+def engagement_weight(e: float | None, baseline: float | None) -> float:
     """
     How unusual this post's engagement is *for its own account*, as a
     multiplicative post weight: the ratio to the account's typical (median)
@@ -50,9 +50,10 @@ def engagement_weight(e: float, baseline: float | None) -> float:
     can't drown the rest of the period. Ratios are per-account, so a small
     account's overperforming post counts exactly like a big account's — only
     "better than usual for you" matters, never absolute reach. With no history
-    yet (baseline None) every post weighs 1.
+    yet (baseline None), or for a post too young for engagement to mean anything
+    (e None, per fetch_x's age gate), the weight is a neutral 1.
     """
-    if baseline is None:
+    if baseline is None or e is None:
         return 1.0
     return float(np.clip(np.sqrt((e + 1.0) / (baseline + 1.0)), 0.5, 3.0))
 
