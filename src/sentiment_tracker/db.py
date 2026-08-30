@@ -72,6 +72,17 @@ def update_engagement(con, post_ids: list[str], fresh: dict[str, float], at_iso:
         [(fresh.get(pid), at_iso, pid) for pid in post_ids])
     con.commit()
 
+def scored_posts_in_range(con, accounts: list[str], start_iso: str, end_iso: str) -> list[dict]:
+    """Every scored post cached for these accounts in (start, end]. Backfill buckets
+    from here rather than from one fetch's results, so a transient shortfall from the
+    X API can't silently drop an account's history out of the recomputed periods."""
+    marks = ",".join("?" * len(accounts))
+    rows = con.execute(
+        f"SELECT account, created_at, score, engagement FROM posts "
+        f"WHERE account IN ({marks}) AND created_at>? AND created_at<=? AND score IS NOT NULL",
+        (*accounts, start_iso, end_iso)).fetchall()
+    return [{"account": a, "created_at": c, "score": s, "engagement": e} for a, c, s, e in rows]
+
 def engagement_history(con, account: str, before_iso: str) -> list[float]:
     """Engagement of the account's cached posts strictly before a cutoff."""
     return [r[0] for r in con.execute(
@@ -83,7 +94,11 @@ def save_period(con, period_ts: str, horizon: str, agg: float, agg_uniform: floa
                 weights: dict[str, float], state_json: str) -> None:
     con.execute("INSERT OR REPLACE INTO periods (period_ts,horizon,agg_score,agg_uniform,price_now) "
                 "VALUES (?,?,?,?,?)", (period_ts, horizon, agg, agg_uniform, price_now))
-    con.executemany("INSERT OR REPLACE INTO account_signals VALUES (?,?,?,?)",
+    # Replace the period's signal set wholesale: an account that contributed on an
+    # earlier run but not this one must disappear, or its stale row keeps claiming a
+    # contribution the saved agg_score no longer includes.
+    con.execute("DELETE FROM account_signals WHERE period_ts=?", (period_ts,))
+    con.executemany("INSERT INTO account_signals VALUES (?,?,?,?)",
                     [(period_ts, a, s, counts[a]) for a, s in signals.items()])
     con.execute("INSERT OR REPLACE INTO weight_snapshots VALUES (?,?,?)",
                 (period_ts, json.dumps(weights), state_json))

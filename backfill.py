@@ -80,7 +80,13 @@ def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) ->
     db.save_posts(con, posts)
 
     periods = period_boundaries(start, now, step)
-    by_period = bucket_by_period(posts, periods, step)
+    # Bucket from the db, not from `posts`: the cache is the union of every fetch, so a
+    # short fetch (a rate limit, an account temporarily returning less) can no longer
+    # drop that account's history out of the recomputed periods. Also makes re-runs
+    # idempotent — the same window always rebuilds from the same set.
+    cached = db.scored_posts_in_range(con, handles, (start - step).isoformat(), now.isoformat())
+    print(f"bucketing {len(cached)} cached posts ({len(posts)} returned by this fetch)...")
+    by_period = bucket_by_period(cached, periods, step)
 
     aw = engine.load_weights(con, handles, cfg["weights"], resume=resume)
 
