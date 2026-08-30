@@ -65,8 +65,11 @@ def main(config_path: str = "config.yaml") -> None:
 
     # Phase B: score the current period from posts in (now - step, now].
     posts = fetch_posts(handles, since=now - step, until=now)
-    for p in posts:
-        p["score"] = sentiment.score_post(p["text"], {**config["sentiment"], "horizon": horizon})
+    scored = sentiment.score_many([p["text"] for p in posts],
+                                  {**config["sentiment"], "horizon": horizon})
+    for p, s in zip(posts, scored):
+        p["score"] = s
+    posts = [p for p in posts if p["score"] is not None] # Unscored posts retry next run.
     db.save_posts(con, posts)
 
     by_acct = defaultdict(list)
