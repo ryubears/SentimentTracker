@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 import os
 import tweepy
 
-def fetch_posts(handles: list[str], since: datetime, max_per_account: int = 20) -> list[dict]:
+def fetch_posts(handles: list[str], since: datetime, until: datetime | None = None,
+                max_per_account: int = 20) -> list[dict]:
     client = tweepy.Client(bearer_token=os.environ["X_BEARER_TOKEN"], wait_on_rate_limit=True)
     users = client.get_users(usernames=handles).data or []
     out = []
@@ -15,6 +16,7 @@ def fetch_posts(handles: list[str], since: datetime, max_per_account: int = 20) 
         resp = client.get_users_tweets(
             id=u.id, max_results=max_per_account,
             start_time=since.astimezone(timezone.utc),
+            end_time=until.astimezone(timezone.utc) if until else None,
             exclude=["retweets", "replies"],
             tweet_fields=["created_at", "public_metrics"],
         )

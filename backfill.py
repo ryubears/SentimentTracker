@@ -30,10 +30,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 sys.path.insert(0, "src")
-from sentiment_tracker import db, prices, sentiment
+from sentiment_tracker import db, engine, prices, sentiment
 from sentiment_tracker.fetch_x import fetch_historical_posts
 from sentiment_tracker.periods import HORIZON, anchor_hour, current_boundary
-from sentiment_tracker.weights import AccountWeights, aggregate
 
 def period_boundaries(start: datetime, end: datetime, step: timedelta) -> list[pd.Timestamp]:
     ts, out = start, []
@@ -77,34 +76,15 @@ def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) ->
     periods = period_boundaries(start, now, step)
     by_period = bucket_by_period(posts, periods, step)
 
-    state = db.latest_state(con) if resume else None
-    aw = AccountWeights.from_json(state) if state else AccountWeights(handles, **cfg["weights"])
-    for h in handles:
-        aw.add_account(h)
+    aw = engine.load_weights(con, handles, cfg["weights"], resume=resume)
 
-    pending = None # (period_ts, signals, price_now) awaiting resolution.
     resolved_n = 0
     for t in periods:
-        acct_scores = by_period.get(t, {})
-        signals = {a: sum(v) / len(v) for a, v in acct_scores.items()}
-        counts = {a: len(v) for a, v in acct_scores.items()}
-        price_now = prices.price_at(klines, t)
-
-        # Phase A: the previous period's horizon has now elapsed.
-        if pending is not None:
-            prev_t, prev_signals, prev_price = pending
-            ret = price_now / prev_price - 1.0
-            aw.update(prev_signals, ret)
-            db.resolve_period(con, prev_t.isoformat(), price_now, ret)
-            resolved_n += 1
-
+        # Phase A: resolve anything whose horizon has elapsed by this boundary.
+        resolved_n += len(engine.resolve_matured(con, aw, klines, t, step))
         # Phase B: score this period with weights as of before its own outcome.
-        w = aw.weights()
-        agg = aggregate(signals, w)
-        agg_uniform = aggregate(signals, {a: 1.0 for a in signals})
-        db.save_period(con, t.isoformat(), cfg["horizon"], agg, agg_uniform, price_now,
-                       signals, counts, w, aw.to_json())
-        pending = (t, signals, price_now)
+        engine.score_period(con, aw, t, by_period.get(t, {}),
+                            prices.price_at(klines, t), cfg["horizon"])
 
     print(f"backfilled {len(periods)} periods ({resolved_n} resolved) "
          f"from {start.date()} to {now.date()}")
