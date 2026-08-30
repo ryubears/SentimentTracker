@@ -100,7 +100,8 @@ def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False,
         resolved_n += len(engine.resolve_matured(con, aw, klines, t, step))
         # Phase B: score this period with weights as of before its own outcome.
         engine.score_period(con, aw, t, by_period.get(t, {}),
-                            prices.price_at(klines, t), cfg["horizon"])
+                            prices.price_at(klines, t), cfg["horizon"],
+                            relevance_min=cfg.get("signal", {}).get("relevance_min", 0.0))
 
     print(f"backfilled {len(periods)} periods ({resolved_n} resolved) "
          f"from {start.date()} to {now.date()}")

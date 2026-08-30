@@ -8,6 +8,7 @@ import yaml
 from sentiment_tracker import db, evaluate
 
 cfg = yaml.safe_load(open("config.yaml"))
-res = evaluate.evaluate(db.connect(cfg["db_path"]))
+res = evaluate.evaluate(db.connect(cfg["db_path"]),
+                        deadband=cfg.get("signal", {}).get("deadband", 0.0))
 print(json.dumps(res, indent=2))
 open("RESULTS.md", "w").write("# Live results\n\n```json\n" + json.dumps(res, indent=2) + "\n```\n")

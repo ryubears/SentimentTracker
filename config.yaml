@@ -59,6 +59,16 @@ weights:
   decay: 0.9           # per-period memory. 0.9 ~ 10-period half-life-ish; 0.97 for hourly
   floor: 0.2           # share of total weight distributed uniformly (nobody drops below floor/N)
 
+signal:
+  # Posts scoring at or below this in absolute value are treated as "no view on BTC"
+  # and left out of the account's mean, instead of dragging it toward zero. The
+  # prompt scores an off-topic post 0, and ~60% of posts land there.
+  relevance_min: 0.0
+  # Only act when the aggregate clears this. A near-zero aggregate's sign is a
+  # coin flip. NOTE: not yet validated out-of-sample - it is reported alongside
+  # the ungated metrics, so compare the two as live periods accumulate.
+  deadband: 0.01
+
 sentiment:
   backend: "llm"       # "llm" (Claude) or "vader"
   model: "claude-sonnet-4-6"

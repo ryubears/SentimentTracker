@@ -67,7 +67,9 @@ def main(config_path: str = "config.yaml") -> None:
         by_acct[p["account"]].append(p["score"])
 
     price_now = prices.price_at(klines, pd.Timestamp(now))
-    agg, agg_uniform, w = engine.score_period(con, aw, now, by_acct, price_now, horizon)
+    agg, agg_uniform, w = engine.score_period(
+        con, aw, now, by_acct, price_now, horizon,
+        relevance_min=config.get("signal", {}).get("relevance_min", 0.0))
 
     print(json.dumps({"period": now.isoformat(), "posts": len(posts), "score": round(agg, 4),
                       "uniform": round(agg_uniform, 4), "btc": price_now,
