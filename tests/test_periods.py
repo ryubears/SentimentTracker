@@ -23,14 +23,15 @@ def test_hourly_floors_to_the_hour_regardless_of_anchor():
     assert current_boundary(datetime(2026, 8, 30, 9, 15, 7, tzinfo=UTC), HORIZON["1h"], anchor=5) \
         == datetime(2026, 8, 30, 9, 0, tzinfo=UTC)
 
-def test_anchor_hour_fresh_db_defaults_to_midnight():
-    assert anchor_hour(db.connect(":memory:"), "1d") == 0
-
-def test_anchor_hour_inferred_from_earliest_period_then_pinned_in_meta():
+def test_anchor_hour_is_midnight_utc_and_pinned_in_meta():
     con = db.connect(":memory:")
+    # Existing rows at another hour don't move the anchor — midnight is canonical.
     con.execute("INSERT INTO periods (period_ts, horizon) VALUES ('2026-07-01T05:00:00+00:00', '1d')")
-    con.execute("INSERT INTO periods (period_ts, horizon) VALUES ('2026-07-02T09:00:00+00:00', '1d')")
-    assert anchor_hour(con, "1d") == 5 # earliest wins, later strays don't move it.
-    assert anchor_hour(con, "1h") == 0 # another horizon's rows don't leak.
-    con.execute("DELETE FROM periods")
-    assert anchor_hour(con, "1d") == 5 # pinned in meta — pruning rows can't shift it.
+    assert anchor_hour(con, "1d") == 0
+    assert db.get_meta(con, "anchor_hour_1d") == "0" # pinned so it can never drift.
+
+def test_anchor_hour_respects_a_deliberately_pinned_meta_value():
+    con = db.connect(":memory:")
+    db.set_meta(con, "anchor_hour_1d", "5")
+    assert anchor_hour(con, "1d") == 5
+    assert anchor_hour(con, "1h") == 0 # other horizon unaffected.

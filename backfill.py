@@ -68,11 +68,15 @@ def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) ->
 
     print(f"fetching historical posts for {len(handles)} accounts since {start.date()}...")
     posts = fetch_historical_posts(handles, since=start, until=now)
-    print(f"scoring {len(posts)} posts with backend={cfg['sentiment']['backend']}"
-         + (" (this calls the LLM once per post — switch to vader in config.yaml to backfill for free)"
-            if cfg["sentiment"]["backend"] == "llm" else "") + "...")
+    known = dict(con.execute("SELECT post_id, score FROM posts WHERE score IS NOT NULL"))
+    fresh = [p for p in posts if p["post_id"] not in known]
+    print(f"scoring {len(fresh)} posts ({len(posts) - len(fresh)} already scored in the db) "
+         f"with backend={cfg['sentiment']['backend']}"
+         + (" (this calls the LLM once per unscored post — switch to vader in config.yaml to backfill for free)"
+            if cfg["sentiment"]["backend"] == "llm" and fresh else "") + "...")
     for p in posts:
-        p["score"] = sentiment.score_post(p["text"], {**cfg["sentiment"], "horizon": cfg["horizon"]})
+        p["score"] = known[p["post_id"]] if p["post_id"] in known else \
+            sentiment.score_post(p["text"], {**cfg["sentiment"], "horizon": cfg["horizon"]})
     db.save_posts(con, posts)
 
     periods = period_boundaries(start, now, step)
