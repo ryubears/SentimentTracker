@@ -35,8 +35,9 @@ def build_payload(con, cfg: dict) -> dict:
     unif = np.array([r[2] for r in resolved], dtype=float)
     ret = np.array([r[3] for r in resolved], dtype=float)
 
-    strat = strategy_returns(agg, ret)
-    strat_u = strategy_returns(unif, ret)
+    deadband = cfg.get("signal", {}).get("deadband", 0.0)
+    strat = strategy_returns(agg, ret, deadband)
+    strat_u = strategy_returns(unif, ret, deadband)
     cum = np.cumprod(1 + strat) - 1
     cum_u = np.cumprod(1 + strat_u) - 1
     ppy = PERIODS_PER_YEAR[cfg["horizon"]]
@@ -56,7 +57,7 @@ def build_payload(con, cfg: dict) -> dict:
             "symbol": cfg["symbol"], "horizon": cfg["horizon"],
             "n_resolved": len(resolved), "n_accounts": len(accounts),
             "span": [ts[0][:10], ts[-1][:10]] if ts else ["", ""],
-            "window": ROLL_WINDOW,
+            "window": ROLL_WINDOW, "deadband": deadband,
             "generated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         },
         "tiles": {
@@ -173,8 +174,8 @@ footer { margin-top: 26px; font-size: 12px; color: var(--muted); }
   </div>
   <div class="card">
     <h2>Cumulative strategy return</h2>
-    <p class="sub">Compounded return from going long when the aggregate score is bullish and
-      short when bearish, adaptive vs uniform weights.</p>
+    <p class="sub" id="cumsub">Compounded return from going long when the aggregate score is
+      bullish and short when bearish, adaptive vs uniform weights.</p>
     <div class="legend" id="clegend"></div>
     <div class="chart" id="cumret"></div>
   </div>
@@ -336,6 +337,9 @@ function render() {
   legend(document.getElementById("wlegend"),
     W.top.map((a, i) => [a, PALETTE[i]]).concat([["other accounts", "var(--muted)"], ["uniform 1/N", "var(--axis)", true]]));
 
+  if (m.deadband > 0) document.getElementById("cumsub").textContent =
+    `Compounded return from going long when the aggregate score is bullish and short when `
+    + `bearish, flat when |score| \u2264 ${m.deadband} \u2014 adaptive vs uniform weights.`;
   const R = D.returns;
   lineChart(document.getElementById("cumret"), R.dates, [
     { name: "adaptive", values: R.cum, color: PALETTE[0], label: true },

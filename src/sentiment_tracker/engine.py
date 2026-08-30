@@ -42,16 +42,24 @@ def resolve_matured(con, aw: AccountWeights, klines: pd.DataFrame,
 
 def score_period(con, aw: AccountWeights, t: datetime | pd.Timestamp,
                  acct_scores: dict[str, list[float]], price_now: float,
-                 horizon: str) -> tuple[float, float, dict[str, float]]:
+                 horizon: str, relevance_min: float = 0.0
+                 ) -> tuple[float, float, dict[str, float]]:
     """
     Phase B: aggregate each account's post scores into one signal with the
-    current weights, and save the period plus a weight snapshot. An account's
-    signal is the plain mean of its post scores — every post it made in the
-    window counts equally, so the edge has to come from what the posts say.
-    Returns (agg, agg_uniform, weights).
+    current weights, and save the period plus a weight snapshot.
+
+    An account's signal is the mean of its *relevant* posts only — those with
+    |score| > relevance_min. The scoring prompt gives an off-topic post score 0,
+    and averaging those in treats "said nothing about BTC" as "said neutral",
+    which drags every real view toward zero: about 60% of posts score exactly 0,
+    so a lone conviction call used to arrive at the aggregate an order of
+    magnitude smaller than it was. An account with nothing relevant to say this
+    period contributes no signal at all, exactly like an account that
+    did not post. Returns (agg, agg_uniform, weights).
     """
-    signals = {a: sum(v) / len(v) for a, v in acct_scores.items()}
-    counts = {a: len(v) for a, v in acct_scores.items()}
+    relevant = {a: [s for s in v if abs(s) > relevance_min] for a, v in acct_scores.items()}
+    signals = {a: sum(v) / len(v) for a, v in relevant.items() if v}
+    counts = {a: len(v) for a, v in relevant.items() if v} # n_posts counts what formed the signal
     w = aw.weights()
     agg = aggregate(signals, w)
     agg_uniform = aggregate(signals, {a: 1.0 for a in signals})

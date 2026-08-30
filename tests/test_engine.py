@@ -56,3 +56,28 @@ def test_resolve_leaves_periods_older_than_price_history_unresolved():
     klines = make_klines(T0, 72) # starts months after that period matured.
     assert engine.resolve_matured(con, aw, klines, pd.Timestamp(T0) + STEP, STEP) == []
     assert con.execute("SELECT resolved FROM periods").fetchone()[0] == 0
+
+def test_irrelevant_posts_do_not_dilute_an_accounts_signal():
+    con = db.connect(":memory:")
+    aw = engine.load_weights(con, ["a"], CFG)
+    # One conviction call among four off-topic posts the prompt scored 0.
+    engine.score_period(con, aw, pd.Timestamp(T0), {"a": [0.0, 0.0, -0.8, 0.0, 0.0]},
+                        100.0, "1d", relevance_min=0.0)
+    sig, n = con.execute("SELECT signal, n_posts FROM account_signals").fetchone()
+    assert abs(sig - (-0.8)) < 1e-9 # not -0.16, which the plain mean gave.
+    assert n == 1 # n_posts counts what actually formed the signal.
+
+def test_account_with_nothing_relevant_contributes_no_signal():
+    con = db.connect(":memory:")
+    aw = engine.load_weights(con, ["a", "b"], CFG)
+    engine.score_period(con, aw, pd.Timestamp(T0), {"a": [0.0, 0.0], "b": [0.5]},
+                        100.0, "1d", relevance_min=0.0)
+    rows = [r[0] for r in con.execute("SELECT account FROM account_signals")]
+    assert rows == ["b"] # silence on the topic is not a neutral vote.
+
+def test_relevance_min_can_drop_weak_views_too():
+    con = db.connect(":memory:")
+    aw = engine.load_weights(con, ["a"], CFG)
+    engine.score_period(con, aw, pd.Timestamp(T0), {"a": [0.02, 0.9]}, 100.0, "1d",
+                        relevance_min=0.05)
+    assert abs(con.execute("SELECT signal FROM account_signals").fetchone()[0] - 0.9) < 1e-9

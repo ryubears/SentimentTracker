@@ -25,3 +25,13 @@ def test_rolling_corr_fills_after_window_and_tracks_correlation():
 def test_rolling_corr_returns_none_for_flat_windows():
     out = rolling_corr([1.0] * 6, [0.1, -0.2, 0.3, -0.1, 0.2, 0.0], window=3)
     assert out["pearson"] == [None] * 6
+
+def test_deadband_flattens_low_conviction_periods():
+    x = [0.5, 0.005, -0.005, -0.5]
+    r = [0.02, 0.02, 0.02, 0.02]
+    assert list(strategy_returns(x, r)) == [0.02, 0.02, -0.02, -0.02] # ungated
+    assert list(strategy_returns(x, r, deadband=0.01)) == [0.02, 0.0, 0.0, -0.02]
+
+def test_deadband_of_zero_matches_ungated_behaviour():
+    x, r = [0.3, -0.2], [0.01, 0.01]
+    assert list(strategy_returns(x, r, 0.0)) == list(strategy_returns(x, r))
