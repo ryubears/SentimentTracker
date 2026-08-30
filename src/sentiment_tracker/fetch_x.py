@@ -1,11 +1,11 @@
-"""Pull recent posts for each tracked account via the X API v2 (tweepy)."""
+"""
+Pull recent posts for each tracked account via the X API v2 (tweepy).
+"""
+
 from __future__ import annotations
-
-import os
 from datetime import datetime, timezone
-
+import os
 import tweepy
-
 
 def fetch_posts(handles: list[str], since: datetime, max_per_account: int = 20) -> list[dict]:
     client = tweepy.Client(bearer_token=os.environ["X_BEARER_TOKEN"], wait_on_rate_limit=True)
@@ -26,12 +26,12 @@ def fetch_posts(handles: list[str], since: datetime, max_per_account: int = 20) 
             })
     return out
 
-
 def fetch_historical_posts(handles: list[str], since: datetime, until: datetime | None = None,
                            max_per_account: int = 3200) -> list[dict]:
-    """Backfill variant: paginates a user's timeline instead of taking one page.
-    Note the ~3200-tweet cap per account on this endpoint regardless of the time range —
-    for a high-volume account, `since` many months back may not fully be reachable."""
+    """
+    Backfill variant: paginates a user's timeline instead of taking one page.
+    Note the 3200 tweet cap per account on this endpoint regardless of the time range for a high-volume account.
+    """
     client = tweepy.Client(bearer_token=os.environ["X_BEARER_TOKEN"], wait_on_rate_limit=True)
     users = client.get_users(usernames=handles).data or []
     since_utc = since.astimezone(timezone.utc)

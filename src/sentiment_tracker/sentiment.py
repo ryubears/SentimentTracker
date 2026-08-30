@@ -1,6 +1,8 @@
-"""Per-post sentiment in [-1, 1]. Two backends so you can show a baseline vs LLM comparison."""
-from __future__ import annotations
+"""
+Per-post sentiment in [-1, 1]. Two backends so you can show a baseline vs LLM comparison.
+"""
 
+from __future__ import annotations
 import json
 import os
 
@@ -11,11 +13,9 @@ over the next {horizon}. Respond with ONLY a JSON object: {{"score": float in [-
 Post:
 {text}"""
 
-
 def score_vader(text: str) -> float:
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
     return SentimentIntensityAnalyzer().polarity_scores(text)["compound"]
-
 
 def score_llm(text: str, model: str, horizon: str) -> float:
     import anthropic
@@ -26,9 +26,8 @@ def score_llm(text: str, model: str, horizon: str) -> float:
     )
     raw = msg.content[0].text.strip().strip("`").removeprefix("json").strip()
     d = json.loads(raw)
-    # confidence-weight the score so hedged posts count less
+    # Weight the score by confidence so hedged posts count less.
     return max(-1.0, min(1.0, float(d["score"]) * float(d.get("confidence", 1.0))))
-
 
 def score_post(text: str, cfg: dict) -> float:
     if cfg["backend"] == "llm":

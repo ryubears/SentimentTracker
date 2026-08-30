@@ -1,43 +1,43 @@
-"""One scheduled run. Two phases:
-  A. Resolve past periods whose horizon has elapsed -> update account weights.
-  B. Score the current period with the *updated* weights and snapshot them.
-Run daily (horizon "1d") or hourly (horizon "1h") — same code, different config."""
-from __future__ import annotations
+"""
+One scheduled run. Two phases:
+  A. Resolve past periods whose horizon has elapsed and update account weights.
+  B. Score the current period with the updated weights and snapshot them.
+Run daily (horizon "1d") or hourly (horizon "1h"), change in config.
+"""
 
-import json
-import sys
+from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-
+import json
+import sys
 import pandas as pd
 import yaml
 
+# Load all environment variables from .env file.
 from dotenv import load_dotenv
-
 load_dotenv()
 
 sys.path.insert(0, "src")
-from sentiment_tracker import db, prices, sentiment  # noqa: E402
-from sentiment_tracker.fetch_x import fetch_posts  # noqa: E402
-from sentiment_tracker.weights import AccountWeights, aggregate  # noqa: E402
+from sentiment_tracker import db, prices, sentiment 
+from sentiment_tracker.fetch_x import fetch_posts
+from sentiment_tracker.weights import AccountWeights, aggregate
 
 HORIZON = {"1d": timedelta(days=1), "1h": timedelta(hours=1)}
 
-
-def main(cfg_path: str = "config.yaml") -> None:
-    cfg = yaml.safe_load(open(cfg_path))
-    handles = [a["handle"] for a in cfg["accounts"]]
-    step = HORIZON[cfg["horizon"]]
+def main(config_path: str = "config.yaml") -> None:
+    config = yaml.safe_load(open(config_path))
+    handles = [a["handle"] for a in config["accounts"]]
+    step = HORIZON[config["horizon"]]
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
-    con = db.connect(cfg["db_path"])
-    klines = prices.fetch_klines(cfg["symbol"], interval="1h")
+    con = db.connect(config["db_path"])
+    klines = prices.fetch_klines(config["symbol"], interval="1h")
 
     state = db.latest_state(con)
-    aw = AccountWeights.from_json(state) if state else AccountWeights(handles, **cfg["weights"])
+    aw = AccountWeights.from_json(state) if state else AccountWeights(handles, **config["weights"])
     for h in handles:
         aw.add_account(h)
 
-    # ---- Phase A: resolve matured periods, update weights
+    # Phase A: resolve matured periods, update weights.
     for period_ts, price_then in db.unresolved_periods(con):
         t0 = pd.Timestamp(period_ts)
         if now < t0 + step:
@@ -48,10 +48,10 @@ def main(cfg_path: str = "config.yaml") -> None:
         db.resolve_period(con, period_ts, p1, ret)
         print(f"resolved {period_ts}: return {ret:+.3%}")
 
-    # ---- Phase B: score current period
+    # Phase B: score current period.
     posts = fetch_posts(handles, since=now - step)
     for p in posts:
-        p["score"] = sentiment.score_post(p["text"], {**cfg["sentiment"], "horizon": cfg["horizon"]})
+        p["score"] = sentiment.score_post(p["text"], {**config["sentiment"], "horizon": config["horizon"]})
     db.save_posts(con, posts)
 
     by_acct, counts = defaultdict(list), defaultdict(int)
@@ -64,7 +64,7 @@ def main(cfg_path: str = "config.yaml") -> None:
     agg = aggregate(signals, w)
     agg_uniform = aggregate(signals, {a: 1.0 for a in signals})
     price_now = prices.price_at(klines, pd.Timestamp(now))
-    db.save_period(con, now.isoformat(), cfg["horizon"], agg, agg_uniform, price_now,
+    db.save_period(con, now.isoformat(), config["horizon"], agg, agg_uniform, price_now,
                    signals, counts, w, aw.to_json())
 
     print(json.dumps({"period": now.isoformat(), "posts": len(posts), "score": round(agg, 4),
