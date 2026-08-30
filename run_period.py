@@ -60,7 +60,7 @@ def main(config_path: str = "config.yaml") -> None:
 
     by_acct = defaultdict(list)
     for p in posts:
-        by_acct[p["account"]].append(p["score"])
+        by_acct[p["account"]].append((p["score"], p["engagement"]))
 
     price_now = prices.price_at(klines, pd.Timestamp(now))
     agg, agg_uniform, w = engine.score_period(con, aw, now, by_acct, price_now, horizon)

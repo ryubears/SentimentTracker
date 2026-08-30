@@ -6,9 +6,12 @@ production loop and the backfill loop cannot drift apart.
 
 from __future__ import annotations
 from datetime import datetime, timedelta
+from statistics import median
+import numpy as np
 import pandas as pd
 
 from . import db, prices
+from .periods import HORIZON
 from .weights import AccountWeights, aggregate
 
 def load_weights(con, handles: list[str], weights_cfg: dict, resume: bool = True) -> AccountWeights:
@@ -39,15 +42,39 @@ def resolve_matured(con, aw: AccountWeights, klines: pd.DataFrame,
         out.append((period_ts, ret))
     return out
 
+def engagement_weight(e: float, baseline: float | None) -> float:
+    """
+    How unusual this post's engagement is *for its own account*, as a
+    multiplicative post weight: the ratio to the account's typical (median)
+    engagement, sqrt-damped and clipped to [0.5, 3] so a single viral post
+    can't drown the rest of the period. Ratios are per-account, so a small
+    account's overperforming post counts exactly like a big account's — only
+    "better than usual for you" matters, never absolute reach. With no history
+    yet (baseline None) every post weighs 1.
+    """
+    if baseline is None:
+        return 1.0
+    return float(np.clip(np.sqrt((e + 1.0) / (baseline + 1.0)), 0.5, 3.0))
+
 def score_period(con, aw: AccountWeights, t: datetime | pd.Timestamp,
-                 acct_scores: dict[str, list[float]], price_now: float,
+                 acct_posts: dict[str, list[tuple[float, float]]], price_now: float,
                  horizon: str) -> tuple[float, float, dict[str, float]]:
     """
-    Phase B: aggregate per-account post scores with the current weights and save
-    the period plus a weight snapshot. Returns (agg, agg_uniform, weights).
+    Phase B: aggregate per-account post (score, engagement) pairs with the
+    current weights and save the period plus a weight snapshot. Each account's
+    signal is the engagement-weighted mean of its post scores, with weights
+    normalized against that account's own history before this period's window —
+    cached posts only, and strictly pre-window so backfill (which saves all
+    posts up front) can't look ahead. Returns (agg, agg_uniform, weights).
     """
-    signals = {a: sum(v) / len(v) for a, v in acct_scores.items()}
-    counts = {a: len(v) for a, v in acct_scores.items()}
+    cutoff = (t - HORIZON[horizon]).isoformat()
+    signals, counts = {}, {}
+    for a, posts in acct_posts.items():
+        hist = db.engagement_history(con, a, cutoff)
+        baseline = median(hist) if hist else None
+        pw = [(engagement_weight(e, baseline), s) for s, e in posts]
+        signals[a] = sum(w * s for w, s in pw) / sum(w for w, _ in pw)
+        counts[a] = len(posts)
     w = aw.weights()
     agg = aggregate(signals, w)
     agg_uniform = aggregate(signals, {a: 1.0 for a in signals})

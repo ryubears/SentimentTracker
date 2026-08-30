@@ -9,7 +9,8 @@ import sqlite3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS posts (
-  post_id TEXT PRIMARY KEY, account TEXT, created_at TEXT, text TEXT, likes INT, score REAL);
+  post_id TEXT PRIMARY KEY, account TEXT, created_at TEXT, text TEXT, likes INT, score REAL,
+  engagement REAL);
 CREATE TABLE IF NOT EXISTS periods (
   period_ts TEXT PRIMARY KEY, horizon TEXT, agg_score REAL, agg_uniform REAL,
   price_now REAL, price_later REAL, realized_return REAL, resolved INT DEFAULT 0);
@@ -28,12 +29,24 @@ def connect(path: str) -> sqlite3.Connection:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(path)
     con.executescript(SCHEMA)
+    if "engagement" not in (r[1] for r in con.execute("PRAGMA table_info(posts)")):
+        # Pre-engagement db: add the column; likes are the best proxy for old rows.
+        con.execute("ALTER TABLE posts ADD COLUMN engagement REAL")
+        con.execute("UPDATE posts SET engagement = likes")
+        con.commit()
     return con
 
 def save_posts(con, posts: list[dict]) -> None:
     con.executemany(
-        "INSERT OR IGNORE INTO posts VALUES (:post_id,:account,:created_at,:text,:likes,:score)", posts)
+        "INSERT OR IGNORE INTO posts (post_id,account,created_at,text,likes,score,engagement) "
+        "VALUES (:post_id,:account,:created_at,:text,:likes,:score,:engagement)", posts)
     con.commit()
+
+def engagement_history(con, account: str, before_iso: str) -> list[float]:
+    """Engagement of the account's cached posts strictly before a cutoff."""
+    return [r[0] for r in con.execute(
+        "SELECT engagement FROM posts WHERE account=? AND created_at<? AND engagement IS NOT NULL",
+        (account, before_iso))]
 
 def save_period(con, period_ts: str, horizon: str, agg: float, agg_uniform: float,
                 price_now: float, signals: dict[str, float], counts: dict[str, int],

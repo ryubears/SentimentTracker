@@ -7,6 +7,11 @@ from datetime import datetime, timezone
 import os
 import tweepy
 
+def engagement(pm: dict) -> float:
+    """Composite engagement for one post: reshares endorse harder than likes."""
+    return (pm.get("like_count", 0) + 2 * pm.get("retweet_count", 0)
+            + pm.get("reply_count", 0) + pm.get("quote_count", 0))
+
 def fetch_posts(handles: list[str], since: datetime, until: datetime | None = None,
                 max_per_account: int = 20) -> list[dict]:
     client = tweepy.Client(bearer_token=os.environ["X_BEARER_TOKEN"], wait_on_rate_limit=True)
@@ -25,6 +30,7 @@ def fetch_posts(handles: list[str], since: datetime, until: datetime | None = No
                 "post_id": str(t.id), "account": u.username,
                 "created_at": t.created_at.isoformat(), "text": t.text,
                 "likes": t.public_metrics.get("like_count", 0),
+                "engagement": engagement(t.public_metrics),
             })
     return out
 
@@ -51,6 +57,7 @@ def fetch_historical_posts(handles: list[str], since: datetime, until: datetime 
                 "post_id": str(t.id), "account": u.username,
                 "created_at": t.created_at.isoformat(), "text": t.text,
                 "likes": t.public_metrics.get("like_count", 0),
+                "engagement": engagement(t.public_metrics),
             })
             n += 1
         print(f"  {u.username}: {n} posts")

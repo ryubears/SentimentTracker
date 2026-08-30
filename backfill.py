@@ -42,15 +42,17 @@ def period_boundaries(start: datetime, end: datetime, step: timedelta) -> list[p
     return out
 
 def bucket_by_period(posts: list[dict], periods: list[pd.Timestamp],
-                     step: timedelta) -> dict[pd.Timestamp, dict[str, list[float]]]:
-    """Assign each post to the period boundary t such that t - step < created_at <= t —
-    the same (now - step, now] window run_period.py's fetch_posts(since=now-step) covers."""
-    by_period: dict[pd.Timestamp, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+                     step: timedelta) -> dict[pd.Timestamp, dict[str, list[tuple[float, float]]]]:
+    """Assign each post's (score, engagement) to the period boundary t such that
+    t - step < created_at <= t — the same (now - step, now] window run_period.py's
+    fetch_posts(since=now-step, until=now) covers."""
+    by_period: dict[pd.Timestamp, dict[str, list[tuple[float, float]]]] = \
+        defaultdict(lambda: defaultdict(list))
     for p in posts:
         ts = pd.Timestamp(p["created_at"])
         i = bisect.bisect_left(periods, ts)
         if i < len(periods) and periods[i] - step < ts <= periods[i]:
-            by_period[periods[i]][p["account"]].append(p["score"])
+            by_period[periods[i]][p["account"]].append((p["score"], p["engagement"]))
     return by_period
 
 def main(cfg_path: str = "config.yaml", days: int = 60, resume: bool = False) -> None:
