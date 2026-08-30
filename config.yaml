@@ -1,5 +1,4 @@
-# Accounts to track. Start with 15-40; too many dilutes the signal and costs API reads.
-accounts:
+# Accounts to track.
   - handle: blknoiz06
   - handle: cobie
   - handle: TaikiMaeda2
