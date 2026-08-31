@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 sys.path.insert(0, "src")
-from sentiment_tracker import db, engine, prices, sentiment
+from sentiment_tracker import db, engine, prices, sentiment, trader
 from sentiment_tracker.fetch_x import fetch_posts
 from sentiment_tracker.periods import HORIZON, anchor_hour, current_boundary
 
@@ -69,6 +69,9 @@ def main(config_path: str = "config.yaml") -> None:
     agg, signals = engine.score_period(
         con, now, by_acct, price_now, horizon,
         relevance_min=config.get("signal", {}).get("relevance_min", 0.0))
+
+    decision = trader.act(con, now.isoformat(), agg, config)
+    print(f"trade: {decision.action} - {decision.reason}")
 
     print(json.dumps({"period": now.isoformat(), "posts": len(posts), "score": round(agg, 4),
                       "btc": price_now, "accounts_contributing": len(signals),

@@ -1,8 +1,9 @@
 """
-SQLite persistence. Weight snapshots are stored per period to avoid look-ahead in evaluation.
+SQLite persistence for posts, periods, prices and trade decisions.
 """
 
 from __future__ import annotations
+from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
 
@@ -18,6 +19,10 @@ CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS klines (
   symbol TEXT, ts TEXT, close REAL, PRIMARY KEY (symbol, ts));
+CREATE TABLE IF NOT EXISTS trades (
+  period_ts TEXT, decided_at TEXT, action TEXT, agg_score REAL, quote_size REAL,
+  base_size REAL, status TEXT, reason TEXT, detail TEXT,
+  PRIMARY KEY (period_ts, action));
 """
 
 
@@ -96,6 +101,32 @@ def save_klines(con, symbol: str, rows: list[tuple[str, float]]) -> None:
     con.executemany("INSERT OR IGNORE INTO klines VALUES (?,?,?)",
                     [(symbol, ts, close) for ts, close in rows])
     con.commit()
+
+def save_trade(con, period_ts: str, action: str, agg: float, quote_size: float,
+               base_size: float, status: str, reason: str, detail: str = "") -> None:
+    """Record every decision, including holds and dry runs, so the audit trail is
+    the same whether or not an order was actually sent."""
+    con.execute("INSERT OR REPLACE INTO trades VALUES (?,?,?,?,?,?,?,?,?)",
+                (period_ts, datetime.now(timezone.utc).isoformat(), action, agg,
+                 quote_size, base_size, status, reason, detail))
+    con.commit()
+
+def simulated_position(con) -> tuple[float, float]:
+    """Position implied by our own dry-run trade log, for when there is no
+    exchange to ask. Live trading always asks Coinbase instead."""
+    base = 0.0
+    for action, quote, bs, price in con.execute(
+            "SELECT t.action, t.quote_size, t.base_size, p.price_now FROM trades t "
+            "LEFT JOIN periods p ON p.period_ts=t.period_ts "
+            "WHERE t.action IN ('buy','sell') AND t.status IN ('dry-run','placed') "
+            "ORDER BY t.period_ts"):
+        if action == "buy" and price:
+            base += quote / price
+        elif action == "sell":
+            base -= bs
+    base = max(base, 0.0)
+    last = con.execute("SELECT price_now FROM periods ORDER BY period_ts DESC LIMIT 1").fetchone()
+    return base, base * (last[0] if last and last[0] else 0.0)
 
 def get_meta(con, key: str) -> str | None:
     row = con.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()

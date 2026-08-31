@@ -68,4 +68,14 @@ sentiment:
   backend: "llm"       # "llm" (Claude) or "vader"
   model: "claude-sonnet-4-6"
 
+trading:
+  enabled: false         # master switch. false = decisions are recorded, nothing is sent
+  dry_run: true          # even when enabled, simulate unless this is explicitly false
+  product_id: "BTC-USD"
+  buy_threshold: 0.05    # buy when the aggregate is at least this bullish
+  sell_threshold: -0.02  # sell the position when the aggregate is this bearish
+  order_size_usd: 25.0   # spend per buy
+  max_position_usd: 100.0  # never hold more than this
+  min_base_size: 0.000001  # ignore dust when deciding whether a position exists
+
 db_path: "data/tracker.sqlite"
