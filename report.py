@@ -1,5 +1,5 @@
 """
-Print evaluation metrics; used by the GitHub Action to refresh RESULTS.md.
+Print evaluation metrics and refresh RESULTS.md.
 """
 
 import json, os, sys
