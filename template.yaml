@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Hourly sentiment tracker run, scheduled on EventBridge.
+
+Parameters:
+  ScheduleExpression:
+    Type: String
+    Default: cron(0 * * * ? *)   # top of every hour, UTC; matches the 1h horizon
+    Description: When to run. Use cron(0 0 * * ? *) for a daily (1d horizon) setup.
+  SecretName:
+    Type: String
+    Default: sentiment-tracker/api-keys
+    Description: Secrets Manager secret holding X_BEARER_TOKEN, ANTHROPIC_API_KEY and
+                 optionally COINBASE_API_KEY / COINBASE_API_SECRET as JSON keys.
+
+Resources:
+  # Versioned so a bad run can be rolled back to the previous database.
+  StateBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration: {Status: Enabled}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+
+  TrackerFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: .
+      DockerTag: latest
+    Properties:
+      PackageType: Image
+      MemorySize: 2048        # scoring is concurrent; also buys proportional CPU
+      Timeout: 600            # a slow X fetch plus LLM scoring can take minutes
+      ReservedConcurrentExecutions: 1   # single writer: never two runs at once
+      Environment:
+        Variables:
+          TRACKER_S3_BUCKET: !Ref StateBucket
+          TRACKER_S3_KEY: tracker.sqlite
+          TRACKER_DB_PATH: /tmp/tracker.sqlite
+          TRACKER_CONFIG: /var/task/config.yaml
+          TRACKER_SECRET_ID: !Ref SecretName
+      Policies:
+        - S3CrudPolicy: {BucketName: !Ref StateBucket}
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-*
+      Events:
+        Hourly:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleExpression
+            Description: Run one tracker period
+
+  # A run that throws leaves no period behind, and nothing else notices.
+  FailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Sentiment tracker run failed
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - {Name: FunctionName, Value: !Ref TrackerFunction}
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  BucketName:
+    Description: S3 bucket holding tracker.sqlite
+    Value: !Ref StateBucket
+  FunctionName:
+    Value: !Ref TrackerFunction

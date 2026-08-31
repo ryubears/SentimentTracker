@@ -22,11 +22,9 @@ import sys
 import pandas as pd
 import yaml
 
-from dotenv import load_dotenv
-load_dotenv()
-
-sys.path.insert(0, "src")
-from sentiment_tracker import db, engine, prices, sentiment
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
+from sentiment_tracker import db, engine, prices, runtime, sentiment
 from sentiment_tracker.fetch_x import fetch_historical_posts
 from sentiment_tracker.periods import HORIZON, anchor_hour, current_boundary
 
@@ -50,9 +48,10 @@ def bucket_by_period(posts: list[dict], periods: list[pd.Timestamp],
             by_period[periods[i]][p["account"]].append(p["score"])
     return by_period
 
-def main(cfg_path: str = "config.yaml", days: int = 60,
+def main(cfg_path: str | None = None, days: int = 60,
          workers: int = sentiment.DEFAULT_WORKERS) -> None:
-    cfg = yaml.safe_load(open(cfg_path))
+    runtime.load_secrets()
+    cfg = runtime.load_config(cfg_path)
     handles = [a["handle"] for a in cfg["accounts"]]
     step = HORIZON[cfg["horizon"]]
     con = db.connect(cfg["db_path"])
@@ -105,7 +104,7 @@ def main(cfg_path: str = "config.yaml", days: int = 60,
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--config", default="config.yaml")
+    ap.add_argument("--config", default=None)
     ap.add_argument("--days", type=int, default=60)
     ap.add_argument("--workers", type=int, default=sentiment.DEFAULT_WORKERS,
                     help="concurrent LLM scoring requests (default %(default)s)")

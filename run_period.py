@@ -9,22 +9,20 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 import json
+import os
 import sys
 import pandas as pd
 import yaml
 
-# Load all environment variables from .env file.
-from dotenv import load_dotenv
-load_dotenv()
-
-sys.path.insert(0, "src")
-from sentiment_tracker import db, engine, prices, sentiment, trader
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
+from sentiment_tracker import db, engine, prices, runtime, sentiment, trader
 from sentiment_tracker.fetch_x import fetch_posts
 from sentiment_tracker.periods import HORIZON, anchor_hour, current_boundary
 
 
-def main(config_path: str = "config.yaml") -> None:
-    config = yaml.safe_load(open(config_path))
+def main(config_path: str | None = None) -> None:
+    runtime.load_secrets()
+    config = runtime.load_config(config_path)
     handles = [a["handle"] for a in config["accounts"]]
     horizon = config["horizon"]
     step = HORIZON[horizon]
