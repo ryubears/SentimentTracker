@@ -13,12 +13,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import argparse
 import json
-import sys
+import os, sys
 import numpy as np
 import yaml
 
-sys.path.insert(0, "src")
-from sentiment_tracker import db
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
+from sentiment_tracker import db, runtime
 from sentiment_tracker.evaluate import metrics, rolling_corr, sortino, strategy_returns
 
 PERIODS_PER_YEAR = {"1d": 365.0, "1h": 24 * 365.0}
@@ -62,10 +62,10 @@ def build_payload(con, cfg: dict) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--config", default="config.yaml")
+    ap.add_argument("--config", default=None)
     ap.add_argument("--out", default="dashboard.html")
     args = ap.parse_args()
-    cfg = yaml.safe_load(open(args.config))
+    cfg = runtime.load_config(args.config)
     payload = build_payload(db.connect(cfg["db_path"]), cfg)
     html = TEMPLATE.replace("__PAYLOAD__", json.dumps(payload))
     open(args.out, "w").write(html)

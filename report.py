@@ -2,12 +2,11 @@
 Print evaluation metrics; used by the GitHub Action to refresh RESULTS.md.
 """
 
-import json, sys
-sys.path.insert(0, "src")
-import yaml
-from sentiment_tracker import db, evaluate
+import json, os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
+from sentiment_tracker import db, evaluate, runtime
 
-cfg = yaml.safe_load(open("config.yaml"))
+cfg = runtime.load_config()
 res = evaluate.evaluate(db.connect(cfg["db_path"]),
                         deadband=cfg.get("signal", {}).get("deadband", 0.0))
 print(json.dumps(res, indent=2))
