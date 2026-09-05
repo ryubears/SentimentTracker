@@ -23,7 +23,7 @@ BTC price (Binance) ─► realized return over the horizon ─┴─► evaluat
 ```
 
 **Relevance filter.** The scoring prompt gives an irrelevant post `score 0`, and
-~60% of posts land there. Including those would dragging real views toward zero — so only posts with
+~60% of posts land there. Including those would drag real views toward zero — so only posts with
 `|score| > signal.relevance_min` count. An account with nothing relevant to say
 contributes nothing, exactly like one that did not post.
 
