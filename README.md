@@ -4,7 +4,7 @@ Scores a curated list of crypto X accounts every period, combines them into one
 sentiment number, and measures whether that number predicts the next
 BTC move.
 
-The result was that there was no correlation. Across daily and hourly horizons, 20 or 60 accounts, with
+The result: no correlation. Across daily and hourly horizons, 20 or 60 accounts, with
 and without engagement weighting, the correlation has never escaped its own noise
 band. The current hourly series gives Pearson **0.018** against a shuffled-null
 95th percentile of **0.058**. The value here is the measurement apparatus, not an
