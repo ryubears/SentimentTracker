@@ -102,8 +102,8 @@ turns bearish. **Dry run is the default.** A live order needs
 
 Orders are idempotent per period, buys are capped by `max_position_usd`, a flat
 aggregate never trades, and every decision is
-written to the `trades` table. Given the signal has no measured predictive power,
-treat this as plumbing, not a strategy.
+written to the `trades` table. Given that the signal has no measured predictive
+power, treat this as plumbing, not a strategy.
 
 ## Deploying
 
