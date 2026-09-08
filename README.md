@@ -35,7 +35,7 @@ adaptive and uniform aggregates agreed to three decimals. A sharper `eta` might 
 **No look-ahead.** A period's outcome is only ever read after its horizon has
 elapsed, and `backfill.py` replays the same Phase A / Phase B loop as
 `run_period.py` one boundary at a time, so backfilled history is built exactly
-the way live history is.
+the way live history is built.
 
 **Honest evaluation.** Every run reports a shuffled-label null alongside the real
 correlation, so a number that looks like signal can be checked against what noise
