@@ -107,8 +107,8 @@ not a strategy.
 
 ## Deploying
 
-[`DEPLOY.md`](DEPLOY.md) covers running it on AWS: an hourly Lambda with the
-SQLite database synced to S3.
+[`DEPLOY.md`](DEPLOY.md) covers running it on AWS: an hourly Lambda function
+with the SQLite database pulled from S3 before each run and pushed back after.
 
 ## Layout
 
