@@ -64,7 +64,7 @@ installed for one are invisible to the other, and a scheduled job that hardcodes
 ```
 
 Paginates historical X posts and BTC prices, then walks the period boundaries.
-Scoring is concurrent (~8 posts/sec at 24 workers, versus 0.42 serially).
+Scoring is concurrent (~8 posts/sec at 24 workers, versus 0.42 posts/sec serially).
 
 Two properties worth knowing:
 
