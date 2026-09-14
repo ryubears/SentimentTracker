@@ -86,7 +86,7 @@ Two properties worth knowing:
 | `signal.deadband` | only act when the aggregate clears this |
 | `sentiment` | `llm` (Claude) or `vader` |
 | `trading` | Coinbase execution — **`enabled: false` by default** |
-| `db_path` | SQLite file |
+| `db_path` | SQLite file (default `data/tracker.sqlite`) |
 
 Switching horizons also means pointing `db_path` somewhere new: the `periods`
 table keys on the timestamp alone, so two horizons in one database collide at
