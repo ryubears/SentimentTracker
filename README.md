@@ -53,9 +53,9 @@ cp .env.example .env            # Add X_BEARER_TOKEN, ANTHROPIC_API_KEY
 /usr/bin/python3 dashboard.py   # Writes dashboard.html
 ```
 
-Use an explicit interpreter path if more than one Python is installed. Packages
-installed for one are invisible to the other, and a scheduled job that hardcodes
-`/usr/bin/python3` will not see them otherwise.
+Use an explicit interpreter path if more than one Python is installed — packages
+installed for one are invisible to the other, so a scheduled job that hardcodes
+`/usr/bin/python3` won't see packages installed elsewhere.
 
 ## Backfill
 
