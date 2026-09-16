@@ -83,7 +83,7 @@ Two properties worth knowing:
 | `accounts` | the handles to track (currently 50) |
 | `horizon` | `"1d"` or `"1h"` — how far ahead the score should predict |
 | `signal.relevance_min` | posts at or below this magnitude are "no view" |
-| `signal.deadband` | only act when the aggregate clears this |
+| `signal.deadband` | only act when the aggregate clears this threshold |
 | `sentiment` | `llm` (Claude) or `vader` |
 | `trading` | Coinbase execution — **`enabled: false` by default** |
 | `db_path` | SQLite file (default `data/tracker.sqlite`) |
