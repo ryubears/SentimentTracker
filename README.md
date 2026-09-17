@@ -30,7 +30,8 @@ contributes nothing, exactly like one that did not post.
 **Every account gets one vote.** An earlier version weighted accounts by recent
 accuracy (hedge / multiplicative weights). It was removed: with a uniform floor
 spread across 50 accounts the weights only ever spanned 2.08%–2.30%, so the
-adaptive and uniform aggregates agreed to three decimals. A sharper `eta` might be worth testing.
+adaptive and uniform aggregates agreed to three decimals. A sharper `eta` (the
+hedge learning rate) might be worth testing.
 
 **No look-ahead.** A period's outcome is only ever read after its horizon has
 elapsed, and `backfill.py` replays the same Phase A / Phase B loop as
