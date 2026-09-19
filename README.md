@@ -55,8 +55,9 @@ cp .env.example .env            # Add X_BEARER_TOKEN, ANTHROPIC_API_KEY
 ```
 
 Use an explicit interpreter path if more than one Python is installed — packages
-installed for one are invisible to the other, so a scheduled job that hardcodes
-`/usr/bin/python3` won't see packages installed elsewhere.
+installed for one interpreter are invisible to the other, so a scheduled job
+that hardcodes `/usr/bin/python3` needs its dependencies installed under that
+same interpreter.
 
 ## Backfill
 
