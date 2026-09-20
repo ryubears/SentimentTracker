@@ -115,7 +115,7 @@ with the SQLite database pulled from S3 before each run and pushed back after.
 ## Layout
 
 ```
-run_period.py      one period: resolve matured, score current, maybe trade
+run_period.py      one period: resolve matured periods, score the current period, maybe trade
 backfill.py        replay N days of history through the same loop
 report.py          metrics -> RESULTS.md
 dashboard.py       self-contained HTML dashboard
