@@ -86,7 +86,7 @@ Two properties worth knowing:
 | `horizon` | `"1d"` or `"1h"` — how far ahead the score should predict |
 | `signal.relevance_min` | posts at or below this magnitude are "no view" |
 | `signal.deadband` | only act when the aggregate clears this threshold |
-| `sentiment` | `llm` (Claude) or `vader` |
+| `sentiment` | `llm` (Claude) or `vader` (rule-based, no API calls) |
 | `trading` | Coinbase execution — **`enabled: false` by default** |
 | `db_path` | SQLite file (default `data/tracker.sqlite`) |
 
