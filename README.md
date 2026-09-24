@@ -132,5 +132,6 @@ src/sentiment_tracker/
   db.py         SQLite persistence and migrations
   runtime.py    config / secrets / paths (local vs Lambda)
   storage.py    S3 sync for the database
+
 tests/              unit tests, one file per src module
 ```
