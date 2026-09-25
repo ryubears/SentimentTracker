@@ -40,9 +40,9 @@ elapsed, and `backfill.py` replays the same Phase A / Phase B loop as
 the way live history is built.
 
 **Honest evaluation.** Every run reports a shuffled-label null alongside the real
-correlation, so a number that looks like signal can be checked against what noise
-produces on the same data. Hit rate counts only periods with a directional call —
-a flat aggregate is no call, not a wrong one.
+correlation, so a number that looks like signal can be checked against what pure
+noise produces on the same data. Hit rate counts only periods with a directional
+call — a flat aggregate is no call, not a wrong one.
 
 ## Run locally
 
