@@ -97,9 +97,9 @@ shared boundaries.
 
 ## Trading
 
-`src/sentiment_tracker/trader.py` can place Coinbase Advanced Trade orders: buy a fixed dollar slice
-when the aggregate is bullish past `buy_threshold`, sell the position when it
-drops past `sell_threshold`. **Dry run is the default.** A live order needs
+`src/sentiment_tracker/trader.py` can place Coinbase Advanced Trade orders: buy
+a fixed dollar slice when the aggregate is bullish past `buy_threshold`, sell
+the position when it drops past `sell_threshold`. **Dry run is the default.** A live order needs
 `trading.enabled: true` *and* `trading.dry_run: false`, plus `COINBASE_API_KEY` /
 `COINBASE_API_SECRET` in the environment.
 
