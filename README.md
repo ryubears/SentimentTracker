@@ -74,8 +74,8 @@ Two properties worth knowing:
 - **Scores are cached per post**, so re-running a window costs no LLM calls —
   though the scoring prompt embeds the horizon, so switching `1d` ↔ `1h` means
   re-scoring every post.
-- **Periods are bucketed from the database**, not from one fetch's results, so a
-  short response from the X API cannot silently drop an account's history.
+- **Periods are bucketed from the database**, not from a single fetch's results,
+  so a short response from the X API cannot silently drop an account's history.
 
 ## Configuration
 
