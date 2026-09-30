@@ -25,8 +25,8 @@ BTC price (Binance) ─► realized return over the horizon ─┴─► evaluat
 **Relevance filter.** The scoring prompt gives an irrelevant post `score 0`, and
 ~60% of posts land there. Including those would drag the real signal toward
 zero — so only posts with `|score| > signal.relevance_min` count. An account
-with nothing relevant to say contributes nothing, exactly like one that did
-not post.
+with nothing relevant to say contributes nothing, exactly like an account
+that never posted.
 
 **Every account gets one vote.** An earlier version weighted accounts by recent
 accuracy (hedge / multiplicative weights). It was removed: with a uniform floor
