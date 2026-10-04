@@ -52,7 +52,7 @@ cp .env.example .env            # Add X_BEARER_TOKEN, ANTHROPIC_API_KEY
 /usr/bin/python3 -m pytest tests # Run the test suite
 /usr/bin/python3 run_period.py  # Run one period
 /usr/bin/python3 report.py      # Refresh RESULTS.md
-/usr/bin/python3 dashboard.py   # Writes dashboard.html
+/usr/bin/python3 dashboard.py   # Write dashboard.html
 ```
 
 Use an explicit interpreter path when more than one Python is installed — packages
